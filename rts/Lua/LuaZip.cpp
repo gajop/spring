@@ -33,7 +33,7 @@
 #include "System/FileSystem/FileSystem.h"
 #include "System/LogOutput.h"
 #include "System/Util.h"
-#include "lib/minizip/zip.h"
+#include "minizip/zip.h"
 #include <cstring>
 #include <sstream>
 #include <string>
