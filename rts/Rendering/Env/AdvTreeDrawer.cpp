@@ -491,6 +491,7 @@ void CAdvTreeDrawer::Draw(float treeDistance, bool drawReflection)
 
 	CAdvTreeSquareDrawer drawer(this, cx, cy, treeDistance * SQUARE_SIZE * TREE_SQUARE_SIZE, drawDetailed);
 
+	GML_RECMUTEX_LOCK(feat); // Draw
 	GML_STDMUTEX_LOCK(tree); // Draw
 
 	oldTreeDistance = treeDistance;
@@ -906,6 +907,7 @@ void CAdvTreeDrawer::DrawShadowPass()
 
 	Shader::IProgramObject* po = NULL;
 
+	GML_RECMUTEX_LOCK(feat); // DrawShadowPass
 	GML_STDMUTEX_LOCK(tree); // DrawShadowPass
 
 	// draw with extraSize=1
@@ -1115,11 +1117,11 @@ void CAdvTreeDrawer::AddTree(int treeID, int treeType, const float3& pos, float 
 	ts.pos = pos;
 
 	const int treeSquareSize = SQUARE_SIZE * TREE_SQUARE_SIZE;
-	const int treeSquare =
+	const int treeSquareIdx =
 		((int)pos.x) / (treeSquareSize) +
 		((int)pos.z) / (treeSquareSize) * treesX;
 
-	trees[treeSquare].trees[treeID] = ts;
+	trees[treeSquareIdx].trees[treeID] = ts;
 	ResetPos(pos);
 }
 
@@ -1128,11 +1130,11 @@ void CAdvTreeDrawer::DeleteTree(int treeID, const float3& pos)
 	GML_STDMUTEX_LOCK(tree); // DeleteTree
 
 	const int treeSquareSize = SQUARE_SIZE * TREE_SQUARE_SIZE;
-	const int treeSquare =
+	const int treeSquareIdx =
 		((int)pos.x / (treeSquareSize)) +
 		((int)pos.z / (treeSquareSize) * treesX);
 
-	trees[treeSquare].trees.erase(treeID);
+	trees[treeSquareIdx].trees.erase(treeID);
 
 	ResetPos(pos);
 }
@@ -1172,4 +1174,5 @@ void CAdvTreeDrawer::RemoveGrass(int x, int z)
 
 	grassDrawer->RemoveGrass(x, z);
 }
+
 

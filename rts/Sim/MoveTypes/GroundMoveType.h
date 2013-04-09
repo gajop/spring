@@ -24,7 +24,7 @@ public:
 	void SlowUpdate();
 
 	void StartMoving(float3 pos, float goalRadius);
-	void StartMoving(float3 pos, float goalRadius, float speed);
+	void StartMoving(float3 pos, float goalRadius, float speed) { StartMoving(pos, goalRadius); }
 	void StopMoving();
 
 	void KeepPointingTo(float3 pos, float distance, bool aggressive);
@@ -42,11 +42,10 @@ public:
 	bool IsFlying() const { return flying; }
 	bool IsReversing() const { return reversing; }
 
-	static void CreateLineTable();
-	static void DeleteLineTable();
-
 private:
 	float3 GetObstacleAvoidanceDir(const float3& desiredDir);
+	float3 GetNewSpeedVector(const float hAcc, const float vAcc) const;
+
 	float Distance2D(CSolidObject* object1, CSolidObject* object2, float marginal = 0.0f);
 
 	void GetNewPath();
@@ -56,11 +55,11 @@ private:
 	float BrakingDistance(float speed) const;
 	float3 Here();
 
-	void StartEngine();
-	void StopEngine();
+	void StartEngine(bool callScript);
+	void StopEngine(bool callScript);
 
-	void Arrived();
-	void Fail();
+	void Arrived(bool callScript);
+	void Fail(bool callScript);
 
 	void HandleObjectCollisions();
 	void HandleStaticObjectCollision(
@@ -150,10 +149,6 @@ private:
 	float3 lastAvoidanceDir;
 	float3 mainHeadingPos;
 
-	// number of grid-cells along each dimension; should be an odd number
-	static const int LINETABLE_SIZE = 11;
-	static std::vector<int2> lineTable[LINETABLE_SIZE][LINETABLE_SIZE];
-
 	unsigned int nextObstacleAvoidanceUpdate;
 	unsigned int pathRequestDelay;
 
@@ -161,9 +156,6 @@ private:
 	unsigned int numIdlingUpdates;
 	/// {in, de}creased every SlowUpdate if idling is true/false and pathId != 0
 	unsigned int numIdlingSlowUpdates;
-
-	int moveSquareX;
-	int moveSquareY;
 
 	short wantedHeading;
 };

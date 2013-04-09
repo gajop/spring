@@ -2,7 +2,7 @@
 
 #include "TransportUnit.h"
 #include "Game/GameHelper.h"
-#include "Game/SelectedUnits.h"
+#include "Game/SelectedUnitsHandler.h"
 #include "Map/Ground.h"
 #include "Sim/MoveTypes/MoveDefHandler.h"
 #include "Sim/MoveTypes/HoverAirMoveType.h"
@@ -119,7 +119,7 @@ void CTransportUnit::DependentDied(CObject* o)
 }
 
 
-void CTransportUnit::KillUnit(bool selfDestruct, bool reclaimed, CUnit* attacker, bool)
+void CTransportUnit::KillUnit(CUnit* attacker, bool selfDestruct, bool reclaimed, bool)
 {
 	if (!isDead) {
 		// guard against recursive invocation via
@@ -148,10 +148,10 @@ void CTransportUnit::KillUnit(bool selfDestruct, bool reclaimed, CUnit* attacker
 			if (!unitDef->releaseHeld) {
 				if (!selfDestruct) {
 					// we don't want transportees to leave a corpse
-					transportee->DoDamage(DamageArray(1e6f), ZeroVector, NULL, -DAMAGE_EXTSOURCE_KILLED);
+					transportee->DoDamage(DamageArray(1e6f), ZeroVector, NULL, -DAMAGE_EXTSOURCE_KILLED, -1);
 				}
 
-				transportee->KillUnit(selfDestruct, reclaimed, attacker);
+				transportee->KillUnit(attacker, selfDestruct, reclaimed);
 			} else {
 				// NOTE: game's responsibility to deal with edge-cases now
 				transportee->Move3D(transportee->pos.cClampInBounds(), false);
@@ -207,7 +207,7 @@ void CTransportUnit::KillUnit(bool selfDestruct, bool reclaimed, CUnit* attacker
 		isDead = false;
 	}
 
-	CUnit::KillUnit(selfDestruct, reclaimed, attacker);
+	CUnit::KillUnit(attacker, selfDestruct, reclaimed);
 }
 
 
@@ -295,7 +295,7 @@ void CTransportUnit::AttachUnit(CUnit* unit, int piece)
 
 	if (unit->IsStunned()) {
 		// make sure unit does not fire etc in transport
-		selectedUnits.RemoveUnit(unit);
+		selectedUnitsHandler.RemoveUnit(unit);
 	}
 
 	unit->UnBlock();
@@ -443,7 +443,7 @@ float CTransportUnit::GetLoadUnloadHeight(const float3& wantedPos, const CUnit* 
 		// unit is being transported, set <clampedHeight> to
 		// the altitude at which to UNload the transportee
 		wantedHeight = ground->GetHeightReal(wantedPos.x, wantedPos.z);
-		isAllowedHeight = transporteeUnitDef->IsAllowedTerrainHeight(wantedHeight, &clampedHeight);
+		isAllowedHeight = transporteeUnitDef->IsAllowedTerrainHeight(transporteeMoveDef, wantedHeight, &clampedHeight);
 
 		if (isAllowedHeight) {
 			if (transporteeMoveDef != NULL) {
@@ -483,7 +483,12 @@ float CTransportUnit::GetLoadUnloadHeight(const float3& wantedPos, const CUnit* 
 	float finalHeight = contactHeight;
 
 	// *we* must be capable of reaching the point-of-contact height
-	isAllowedHeight &= unitDef->IsAllowedTerrainHeight(contactHeight, &finalHeight);
+	// however this check fails for eg. ships that want to (un)load
+	// land units on shore --> would require too many special cases
+	// therefore restrict its use to transport aircraft
+	if (this->moveDef == NULL) {
+		isAllowedHeight &= unitDef->IsAllowedTerrainHeight(NULL, contactHeight, &finalHeight);
+	}
 
 	if (allowedPos != NULL) {
 		*allowedPos = isAllowedHeight;

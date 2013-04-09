@@ -76,6 +76,7 @@ S3DModelPiece::S3DModelPiece()
 	, colvol(NULL)
 	, type(MODELTYPE_OTHER)
 	, isEmpty(true)
+	, mIsIdentity(true)
 	, dispListID(0)
 {
 }
@@ -99,10 +100,11 @@ unsigned int S3DModelPiece::CreateDrawForList() const
 
 void S3DModelPiece::DrawStatic() const
 {
-	const bool transform = (offset.SqLength() != 0.0f);
+	const bool transform = (offset.SqLength() != 0.0f || !mIsIdentity);
 
 	if (transform) {
 		glPushMatrix();
+		if (!mIsIdentity) glMultMatrixf(scaleRotMatrix);
 		glTranslatef(offset.x, offset.y, offset.z);
 	}
 
@@ -219,17 +221,18 @@ LocalModelPiece::~LocalModelPiece() {
 
 bool LocalModelPiece::UpdateMatrix()
 {
-	bool r = true;
+	bool r = original->mIsIdentity;
 
 	{
-		pieceSpaceMat.LoadIdentity();
+		// Assimp's Matrix:  M = T * R * S; (SRT vs. RT in spring)
+		// else it's identity
+		pieceSpaceMat = original->scaleRotMatrix;
 
 		// Translate & Rotate are faster than matrix-mul!
-		if (original->scale.SqLength() != 0.0f) { pieceSpaceMat.Scale(original->scale);  r = false; }
 		if (pos.SqLength() != 0.0f) { pieceSpaceMat.Translate(pos);  r = false; }
-		if (         rot.y != 0.0f) { pieceSpaceMat.RotateY(-rot.y); r = false; }
-		if (         rot.x != 0.0f) { pieceSpaceMat.RotateX(-rot.x); r = false; }
-		if (         rot.z != 0.0f) { pieceSpaceMat.RotateZ(-rot.z); r = false; }
+		if (         rot.y != 0.0f) { pieceSpaceMat.RotateY(-rot.y); r = false; } // yaw
+		if (         rot.x != 0.0f) { pieceSpaceMat.RotateX(-rot.x); r = false; } // pitch
+		if (         rot.z != 0.0f) { pieceSpaceMat.RotateZ(-rot.z); r = false; } // roll
 	}
 
 	return r;
@@ -304,9 +307,8 @@ __attribute__ ((force_align_arg_pointer))
 #endif
 float3 LocalModelPiece::GetAbsolutePos() const
 {
-	float3 pos = modelSpaceMat.GetPos();
-	pos.x = -pos.x;
-	return pos;
+	// note: actually OBJECT_TO_WORLD but transform is the same
+	return (modelSpaceMat.GetPos() * WORLD_TO_OBJECT_SPACE);
 }
 
 
@@ -333,10 +335,9 @@ bool LocalModelPiece::GetEmitDirPos(float3& pos, float3& dir) const
 		dir = p2 - p1;
 	}
 
-	// we use a 'right' vector, and the positive x axis points to the left
-	pos.x = -pos.x;
-	dir.x = -dir.x;
-
+	// note: actually OBJECT_TO_WORLD but transform is the same
+	pos *= WORLD_TO_OBJECT_SPACE;
+	dir *= WORLD_TO_OBJECT_SPACE;
 	return true;
 }
 

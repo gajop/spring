@@ -62,17 +62,30 @@ class CLuaRules : public CLuaHandleSynced
 		int AllowWeaponTargetCheck(
 			unsigned int attackerID,
 			unsigned int attackerWeaponNum,
-			unsigned int attackerWeaponDefID);
+			unsigned int attackerWeaponDefID
+		);
 		bool AllowWeaponTarget(
 			unsigned int attackerID,
 			unsigned int targetID,
 			unsigned int attackerWeaponNum,
 			unsigned int attackerWeaponDefID,
-			float* targetPriority);
+			float* targetPriority
+		);
+		bool AllowWeaponInterceptTarget(
+			const CUnit* interceptorUnit,
+			const CWeapon* interceptorWeapon,
+			const CProjectile* interceptorTarget
+		);
 
-		bool UnitPreDamaged(const CUnit* unit, const CUnit* attacker,
-                             float damage, int weaponID, bool paralyzer,
-                             float* newDamage, float* impulseMult);
+		bool UnitPreDamaged(
+			const CUnit* unit,
+			const CUnit* attacker,
+			float damage,
+			int weaponDefID,
+			int projectileID,
+			bool paralyzer,
+			float* newDamage,
+			float* impulseMult);
 
 		bool ShieldPreDamaged(const CProjectile*, const CWeapon*, const CUnit*, bool);
 
@@ -113,6 +126,7 @@ class CLuaRules : public CLuaHandleSynced
 		bool haveShieldPreDamaged;
 		bool haveAllowWeaponTargetCheck;
 		bool haveAllowWeaponTarget;
+		bool haveAllowWeaponInterceptTarget;
 
 		bool haveDrawUnit;
 		bool haveDrawFeature;

@@ -60,6 +60,8 @@ int gmlNoGLThreadNum = GML_NO_THREAD_NUM;
 volatile bool gmlMultiThreadSim = true;
 volatile bool gmlStartSim = false;
 volatile bool gmlKeepRunning = false;
+volatile bool gmlServerActive = false;
+volatile bool gmlMutexLockWait = false; 
 
 #define EXEC_RUN (BYTE *)NULL
 #define EXEC_SYNC (BYTE *)-1
@@ -281,6 +283,7 @@ boost::recursive_mutex &grpselmutex=selmutex;
 boost::recursive_mutex projmutex;
 boost::recursive_mutex objmutex;
 boost::recursive_mutex modelmutex;
+boost::recursive_mutex cammutex;
 
 gmlMutex simmutex;
 

@@ -27,7 +27,7 @@
 #include "Game/GameSetup.h"
 #include "Game/GlobalUnsynced.h"
 #include "Game/Player.h"
-#include "Game/SelectedUnits.h"
+#include "Game/SelectedUnitsHandler.h"
 #include "Lua/LuaRules.h"
 #include "Map/Ground.h"
 #include "Map/MapInfo.h"
@@ -879,7 +879,7 @@ void CUnit::SlowUpdate()
 	DoWaterDamage();
 
 	if (health < 0.0f) {
-		KillUnit(false, true, NULL);
+		KillUnit(NULL, false, true);
 		return;
 	}
 
@@ -918,9 +918,9 @@ void CUnit::SlowUpdate()
 		if ((selfDCountdown -= 1) == 0) {
 			// avoid unfinished buildings making an explosion
 			if (!beingBuilt) {
-				KillUnit(true, false, NULL);
+				KillUnit(NULL, true, false);
 			} else {
-				KillUnit(false, true, NULL);
+				KillUnit(NULL, false, true);
 			}
 			return;
 		}
@@ -942,7 +942,7 @@ void CUnit::SlowUpdate()
 			AddMetal(metalCost * buildDecay, false);
 
 			if (health <= 0.0f || buildProgress <= 0.0f) {
-				KillUnit(false, true, NULL);
+				KillUnit(NULL, false, true);
 			}
 		}
 
@@ -1015,7 +1015,7 @@ void CUnit::SlowUpdate()
 				if (dif.SqLength() < Square(unitDef->kamikazeDist)) {
 					if (victim->speed.dot(dif) <= 0) {
 						//! self destruct when we start moving away from the target, this should maximize the damage
-						KillUnit(true, false, NULL);
+						KillUnit(NULL, true, false);
 						return;
 					}
 				}
@@ -1026,7 +1026,7 @@ void CUnit::SlowUpdate()
 			   (attackTarget     && (attackTarget->pos.SqDistance(pos) < Square(unitDef->kamikazeDist)))
 			|| (userAttackGround && (attackPos.SqDistance(pos))  < Square(unitDef->kamikazeDist))
 		) {
-			KillUnit(true, false, NULL);
+			KillUnit(NULL, true, false);
 			return;
 		}
 	}
@@ -1142,10 +1142,10 @@ void CUnit::DoWaterDamage()
 	if (!isFloating && !onGround)
 		return;
 
-	DoDamage(DamageArray(mapInfo->water.damage), ZeroVector, NULL, -DAMAGE_EXTSOURCE_WATER);
+	DoDamage(DamageArray(mapInfo->water.damage), ZeroVector, NULL, -DAMAGE_EXTSOURCE_WATER, -1);
 }
 
-void CUnit::DoDamage(const DamageArray& damages, const float3& impulse, CUnit* attacker, int weaponDefID)
+void CUnit::DoDamage(const DamageArray& damages, const float3& impulse, CUnit* attacker, int weaponDefID, int projectileID)
 {
 	if (isDead || crashing) {
 		return;
@@ -1180,7 +1180,7 @@ void CUnit::DoDamage(const DamageArray& damages, const float3& impulse, CUnit* a
 	const int paralyzeTime = damages.paralyzeDamageTime;
 	const bool isParalyzer = (paralyzeTime != 0);
 
-	if (luaRules && luaRules->UnitPreDamaged(this, attacker, damage, weaponDefID, isParalyzer, &newDamage, &impulseMult)) {
+	if (luaRules && luaRules->UnitPreDamaged(this, attacker, damage, weaponDefID, projectileID, isParalyzer, &newDamage, &impulseMult)) {
 		damage = newDamage;
 	}
 
@@ -1251,8 +1251,8 @@ void CUnit::DoDamage(const DamageArray& damages, const float3& impulse, CUnit* a
 
 	recentDamage += damage;
 
-	eventHandler.UnitDamaged(this, attacker, damage, weaponDefID, isParalyzer);
-	eoh->UnitDamaged(*this, attacker, damage, weaponDefID, isParalyzer);
+	eventHandler.UnitDamaged(this, attacker, damage, weaponDefID, projectileID, isParalyzer);
+	eoh->UnitDamaged(*this, attacker, damage, weaponDefID, projectileID, isParalyzer);
 
 #ifdef TRACE_SYNC
 	tracefile << "Damage: ";
@@ -1272,7 +1272,7 @@ void CUnit::DoDamage(const DamageArray& damages, const float3& impulse, CUnit* a
 	}
 
 	if (health <= 0.0f) {
-		KillUnit(false, false, attacker);
+		KillUnit(attacker, false, false);
 
 		if (!isDead) { return; }
 		if (beingBuilt) { return; }
@@ -1432,7 +1432,7 @@ bool CUnit::ChangeTeam(int newteam, ChangeType type)
 
 	const int oldteam = team;
 
-	selectedUnits.RemoveUnit(this);
+	selectedUnitsHandler.RemoveUnit(this);
 	SetGroup(NULL);
 
 	eventHandler.UnitTaken(this, oldteam, newteam);
@@ -1727,7 +1727,7 @@ bool CUnit::SetGroup(CGroup* newGroup, bool fromFactory)
 	GML_RECMUTEX_LOCK(grpsel); // SetGroup
 
 	// factory is not necessarily selected
-	if (fromFactory && !selectedUnits.AutoAddBuiltUnitsToFactoryGroup())
+	if (fromFactory && !selectedUnitsHandler.AutoAddBuiltUnitsToFactoryGroup())
 		return false;
 
 	if (group != NULL) {
@@ -1744,8 +1744,8 @@ bool CUnit::SetGroup(CGroup* newGroup, bool fromFactory)
 		} else {
 			// add unit to the set of selected units iff its new group is already selected
 			// and (user wants the unit to be auto-selected or the unit is not newly built)
-			if (selectedUnits.IsGroupSelected(group->id) && (selectedUnits.AutoAddBuiltUnitsToSelectedGroup() || !fromFactory)) {
-				selectedUnits.AddUnit(this);
+			if (selectedUnitsHandler.IsGroupSelected(group->id) && (selectedUnitsHandler.AutoAddBuiltUnitsToSelectedGroup() || !fromFactory)) {
+				selectedUnitsHandler.AddUnit(this);
 			}
 		}
 	}
@@ -1872,12 +1872,12 @@ bool CUnit::AddBuildPower(float amount, CUnit* builder)
 
 		if (beingBuilt) {
 			if (buildProgress <= 0.0f || health <= 0.0f) {
-				KillUnit(false, true, NULL);
+				KillUnit(NULL, false, true);
 				return false;
 			}
 		} else {
 			if (health <= 0.0f) {
-				KillUnit(false, true, NULL);
+				KillUnit(NULL, false, true);
 				return false;
 			}
 		}
@@ -1934,12 +1934,12 @@ void CUnit::FinishedBuilding(bool postInit)
 		}
 
 		UnBlock();
-		KillUnit(false, true, NULL);
+		KillUnit(NULL, false, true);
 	}
 }
 
 
-void CUnit::KillUnit(bool selfDestruct, bool reclaimed, CUnit* attacker, bool showDeathSequence)
+void CUnit::KillUnit(CUnit* attacker, bool selfDestruct, bool reclaimed, bool showDeathSequence)
 {
 	if (isDead) { return; }
 	if (crashing && !beingBuilt) { return; }
@@ -1978,13 +1978,14 @@ void CUnit::KillUnit(bool selfDestruct, bool reclaimed, CUnit* attacker, bool sh
 				false,                             // impactOnly
 				false,                             // ignoreOwner
 				true,                              // damageGround
+				-1u                                // projectileID
 			};
 
 			helper->Explosion(params);
 		}
 
 		if (selfDestruct) {
-			recentDamage += maxHealth * 2;
+			recentDamage += (maxHealth * 2.0f);
 		}
 
 		// start running the unit's kill-script

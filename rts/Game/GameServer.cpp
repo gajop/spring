@@ -73,7 +73,8 @@
 
 using netcode::RawPacket;
 
-CONFIG(int, SpeedControl).defaultValue(1).description("Sets how server adjusts speed according to player's load (CPU), 0: use highest, 1: use average");
+CONFIG(int, SpeedControl).defaultValue(1).minimumValue(1).maximumValue(2)
+	.description("Sets how server adjusts speed according to player's load (CPU), 1: use average, 2: use highest");
 CONFIG(bool, BypassScriptPasswordCheck).defaultValue(false);
 CONFIG(bool, WhiteListAdditionalPlayers).defaultValue(true);
 CONFIG(std::string, AutohostIP).defaultValue("127.0.0.1");
@@ -99,7 +100,7 @@ const unsigned playerBandwidthInterval = 100;
 const unsigned gameProgressFrameInterval = GAME_SPEED * 10;
 
 const std::string commands[numCommands] = {
-	"kick", "kickbynum", "setminspeed", "setmaxspeed",
+	"kick", "kickbynum", "mute", "mutebynum", "setminspeed", "setmaxspeed",
 	"nopause", "nohelp", "cheat", "godmode", "globallos",
 	"nocost", "forcestart", "nospectatorchat", "nospecdraw",
 	"skip", "reloadcob", "reloadcegs", "devlua", "editdefs",
@@ -187,20 +188,7 @@ CGameServer::CGameServer(const std::string& hostIP, int hostPort, const GameData
 	minUserSpeed = setup->minSpeed;
 	noHelperAIs = setup->noHelperAIs;
 
-	{ // modify and save GameSetup text (remove passwords)
-		TdfParser parser(newGameData->GetSetup().c_str(), newGameData->GetSetup().length());
-		TdfParser::TdfSection* root = parser.GetRootSection();
-		for (TdfParser::sectionsMap_t::iterator it = root->sections.begin(); it != root->sections.end(); ++it) {
-			if (it->first.substr(0, 6) == "PLAYER")
-				it->second->remove("Password");
-		}
-		std::ostringstream strbuf;
-		parser.print(strbuf);
-		std::string cleanedSetupText = strbuf.str();
-		GameData* newData = new GameData(*newGameData);
-		newData->SetSetup(cleanedSetupText);
-		gameData.reset(newData);
-	}
+	StripGameSetupText(newGameData);
 
 	if (setup->hostDemo) {
 		Message(str(format(PlayingDemo) %setup->demoName));
@@ -286,6 +274,31 @@ CGameServer::~CGameServer()
 	}*/ //TODO add
 #endif // DEDICATED
 }
+
+void CGameServer::StripGameSetupText(const GameData* const newGameData)
+{
+	// modify and save GameSetup text (remove passwords)
+	TdfParser parser(newGameData->GetSetup().c_str(), newGameData->GetSetup().length());
+	TdfParser::TdfSection* rootSec = parser.GetRootSection();
+
+	for (TdfParser::sectionsMap_t::iterator it = rootSec->sections.begin(); it != rootSec->sections.end(); ++it) {
+		const std::string& sectionKey = StringToLower(it->first);
+
+		if (sectionKey.find("player") != 0)
+			continue;
+
+		TdfParser::TdfSection* playerSec = it->second;
+		playerSec->remove("password", false);
+	}
+
+	std::ostringstream strbuf;
+	parser.print(strbuf);
+
+	GameData* newData = new GameData(*newGameData);
+	newData->SetSetup(strbuf.str());
+	gameData.reset(newData);
+}
+
 
 void CGameServer::AddLocalClient(const std::string& myName, const std::string& myVersion)
 {
@@ -1291,7 +1304,7 @@ void CGameServer::ProcessPacket(const unsigned playerNum, boost::shared_ptr<cons
 				Message(str(format(WrongPlayer) %msgCode %a %(unsigned)inbuf[1]));
 				break;
 			}
-			players[a].lastStats = *(PlayerStatistics*)&inbuf[2];
+			players[a].lastStats = *reinterpret_cast<const PlayerStatistics*>(&inbuf[2]);
 			Broadcast(packet); //forward data
 			break;
 
@@ -2035,7 +2048,7 @@ void CGameServer::PushAction(const Action& action)
 		}
 		else {
 			const std::vector<std::string> &tokens = CSimpleParser::Tokenize(action.extra);
-			if ( tokens.size() < 1 || tokens.size() > 3 ) {
+			if ( tokens.empty() || tokens.size() > 3 ) {
 				LOG_L(L_WARNING,"failed to mute player, usage: /mute <playername> [chatmute] [drawmute]");
 			}
 			else {
@@ -2043,7 +2056,7 @@ void CGameServer::PushAction(const Action& action)
 				StringToLowerInPlace(name);
 				bool muteChat;
 				bool muteDraw;
-				if ( tokens.size() >= 1 ) SetBoolArg(muteChat, tokens[1]);
+				if ( !tokens.empty() ) SetBoolArg(muteChat, tokens[1]);
 				if ( tokens.size() >= 2 ) SetBoolArg(muteDraw, tokens[2]);
 				for (size_t a=0; a < players.size();++a) {
 					std::string playerLower = StringToLower(players[a].name);
@@ -2062,14 +2075,14 @@ void CGameServer::PushAction(const Action& action)
 		}
 		else {
 			const std::vector<std::string> &tokens = CSimpleParser::Tokenize(action.extra);
-			if ( tokens.size() < 1 || tokens.size() > 3 ) {
+			if ( tokens.empty() || tokens.size() > 3 ) {
 				LOG_L(L_WARNING,"failed to mute player, usage: /mutebynum <player-id> [chatmute] [drawmute]");
 			}
 			else {
 				int playerID = atoi(tokens[0].c_str());
 				bool muteChat;
 				bool muteDraw;
-				if ( tokens.size() >= 1 ) SetBoolArg(muteChat, tokens[1]);
+				if ( !tokens.empty() ) SetBoolArg(muteChat, tokens[1]);
 				if ( tokens.size() >= 2 ) SetBoolArg(muteDraw, tokens[2]);
 				MutePlayer(playerID,muteChat,muteDraw);
 			}
@@ -2328,6 +2341,7 @@ void CGameServer::UpdateSpeedControl(int speedCtrl) {
 	if (speedCtrl != curSpeedCtrl) {
 		Message(str(format("Server speed control: %s")
 			%(SpeedControlToString(speedCtrl).c_str())));
+		curSpeedCtrl = speedCtrl;
 	}
 }
 

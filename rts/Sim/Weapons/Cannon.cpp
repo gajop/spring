@@ -63,7 +63,6 @@ void CCannon::UpdateRange(float val)
 {
 	range = val;
 	// initialize range factor
-	rangeFactor = 1.f;
 	rangeFactor = range / GetRange2D(0);
 	// do not extend range if the modder specified speed too low
 	// for the projectile to reach specified range
@@ -120,11 +119,11 @@ bool CCannon::HaveFreeLineOfFire(const float3& pos, bool userTarget, const CUnit
 
 	const float linear = dir.y;
 	const float quadratic = gravity / (projectileSpeed * projectileSpeed) * 0.5f;
-	const float gc = ((collisionFlags & Collision::NOGROUND) == 0)?
+	const float groundDist = ((avoidFlags & Collision::NOGROUND) == 0)?
 		ground->TrajectoryGroundCol(weaponMuzzlePos, flatDir, flatLength - 10, linear, quadratic):
 		-1.0f;
 
-	if (gc > 0.0f) {
+	if (groundDist > 0.0f) {
 		return false;
 	}
 

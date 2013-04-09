@@ -24,14 +24,12 @@ CR_BIND_DERIVED(CTorpedoProjectile, CWeaponProjectile, (ProjectileParams()));
 CR_REG_METADATA(CTorpedoProjectile,(
 	CR_SETFLAG(CF_Synced),
 	CR_MEMBER(tracking),
-	CR_MEMBER(dir),
 	CR_MEMBER(maxSpeed),
 	CR_MEMBER(curSpeed),
 	CR_MEMBER(areaOfEffect),
 	CR_MEMBER(nextBubble),
 	CR_MEMBER(texx),
-	CR_MEMBER(texy),
-	CR_RESERVED(16)
+	CR_MEMBER(texy)
 ));
 
 CTorpedoProjectile::CTorpedoProjectile(const ProjectileParams& params): CWeaponProjectile(params)
@@ -155,7 +153,7 @@ void CTorpedoProjectile::Update()
 			const float3 pspeed = (gs->randVector() * 0.1f) + float3(0.0f, 0.2f, 0.0f);
 
 			new CBubbleProjectile(
-				pos + gs->randVector(), pspeed, 40 + gs->randFloat() * 30,
+				pos + gs->randVector(), pspeed, 40 + gs->randFloat() * GAME_SPEED,
 				1 + gs->randFloat() * 2, 0.01f, owner(), 0.3f + gs->randFloat() * 0.3f
 			);
 		}

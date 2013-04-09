@@ -347,15 +347,18 @@ bool CFeature::AddBuildPower(float amount, CUnit* builder)
 }
 
 
-void CFeature::DoDamage(const DamageArray& damages, const float3& impulse, CUnit*, int)
+void CFeature::DoDamage(const DamageArray& damages, const float3& impulse, CUnit*, int, int)
 {
 	if (damages.paralyzeDamageTime) {
 		return; // paralyzers do not damage features
 	}
 
 	// NOTE: for trees, impulse is used to drive their falling animation
-	StoreImpulse(impulse / mass);
-	ApplyImpulse();
+	// TODO: replace RHS condition by adding Feature{Pre}Damaged callins
+	if ((def->drawType >= DRAWTYPE_TREE) || (udef != NULL && !udef->IsImmobileUnit())) {
+		StoreImpulse(impulse / mass);
+		ApplyImpulse();
+	}
 
 	if (impulse != ZeroVector) {
 		featureHandler->SetFeatureUpdateable(this);

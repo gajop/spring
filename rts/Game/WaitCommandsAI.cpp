@@ -1,9 +1,8 @@
 /* This file is part of the Spring engine (GPL v2 or later), see LICENSE.html */
 
 
-#include <SDL_timer.h>
 #include "WaitCommandsAI.h"
-#include "SelectedUnits.h"
+#include "SelectedUnitsHandler.h"
 #include "GameHelper.h"
 #include "GlobalUnsynced.h"
 #include "UI/CommandColors.h"
@@ -31,57 +30,52 @@ CWaitCommandsAI waitCommandsAI;
 
 static const int maxNetDelay = 30;  // in seconds
 
-static const int updatePeriod = 3;  // 100 ms
+static const int updatePeriod = 3;  // in GAME_SPEED, 100 ms
 
 
 CR_BIND(CWaitCommandsAI, );
 CR_REG_METADATA(CWaitCommandsAI, (
-				CR_MEMBER(waitMap),
-				CR_MEMBER(unackedMap),
-				CR_RESERVED(16)
-				));
+	CR_MEMBER(waitMap),
+	CR_MEMBER(unackedMap)
+));
 
 CR_BIND_DERIVED_INTERFACE(CWaitCommandsAI::Wait, CObject);
 CR_REG_METADATA_SUB(CWaitCommandsAI,Wait, (
-					CR_MEMBER(code),
-					CR_MEMBER(key),
-					CR_MEMBER(valid),
-					//CR_MEMBER(deadTime), FIXME runtime clock relative time! (transform to spring_time instead and write a Serialize for it it!)
-					CR_POSTLOAD(PostLoad)
-					));
+	CR_MEMBER(code),
+	CR_MEMBER(key),
+	CR_MEMBER(valid),
+	CR_MEMBER(deadTime),
+	CR_POSTLOAD(PostLoad)
+));
 
 CR_BIND_DERIVED(CWaitCommandsAI::TimeWait, CWaitCommandsAI::Wait, (1,0));
 CR_REG_METADATA_SUB(CWaitCommandsAI,TimeWait , (
-					CR_MEMBER(unit),
-					CR_MEMBER(enabled),
-					CR_MEMBER(duration),
-					CR_MEMBER(endFrame),
-					CR_MEMBER(factory),
-					CR_RESERVED(16)
-					));
+	CR_MEMBER(unit),
+	CR_MEMBER(enabled),
+	CR_MEMBER(duration),
+	CR_MEMBER(endFrame),
+	CR_MEMBER(factory)
+));
 
 CR_BIND_DERIVED(CWaitCommandsAI::DeathWait, CWaitCommandsAI::Wait, (Command()));
 CR_REG_METADATA_SUB(CWaitCommandsAI,DeathWait , (
-					CR_MEMBER(waitUnits),
-					CR_MEMBER(deathUnits),
-					CR_MEMBER(unitPos),
-					CR_RESERVED(16)
-					));
+	CR_MEMBER(waitUnits),
+	CR_MEMBER(deathUnits),
+	CR_MEMBER(unitPos)
+));
 
 CR_BIND_DERIVED(CWaitCommandsAI::SquadWait, CWaitCommandsAI::Wait, (Command()));
 CR_REG_METADATA_SUB(CWaitCommandsAI,SquadWait , (
-					CR_MEMBER(squadCount),
-					CR_MEMBER(buildUnits),
-					CR_MEMBER(waitUnits),
-					CR_MEMBER(stateText),
-					CR_RESERVED(16)
-					));
+	CR_MEMBER(squadCount),
+	CR_MEMBER(buildUnits),
+	CR_MEMBER(waitUnits),
+	CR_MEMBER(stateText)
+));
 
 CR_BIND_DERIVED(CWaitCommandsAI::GatherWait, CWaitCommandsAI::Wait, (Command()));
 CR_REG_METADATA_SUB(CWaitCommandsAI,GatherWait , (
-					CR_MEMBER(waitUnits),
-					CR_RESERVED(8)
-					));
+	CR_MEMBER(waitUnits)
+));
 
 /******************************************************************************/
 /******************************************************************************/
@@ -125,7 +119,7 @@ void CWaitCommandsAI::Update()
 	}
 
 	// delete old unacknowledged waits
-	const time_t nowTime = time(NULL);
+	const spring_time nowTime = spring_gettime();
 	it = unackedMap.begin();
 	while (it != unackedMap.end()) {
 		WaitMap::iterator tmp = it;
@@ -154,15 +148,15 @@ void CWaitCommandsAI::AddTimeWait(const Command& cmd)
 	GML_RECMUTEX_LOCK(sel); // AddTimeWait
 
 	// save the current selection
-	const CUnitSet tmpSet = selectedUnits.selectedUnits;
+	const CUnitSet tmpSet = selectedUnitsHandler.selectedUnits;
 	CUnitSet::const_iterator it;
 	for (it = tmpSet.begin(); it != tmpSet.end(); ++it) {
 		InsertWaitObject(TimeWait::New(cmd, *it));
 	}
 	// restore the selection
-	selectedUnits.ClearSelected();
+	selectedUnitsHandler.ClearSelected();
 	for (it = tmpSet.begin(); it != tmpSet.end(); ++it) {
-		selectedUnits.AddUnit(*it);
+		selectedUnitsHandler.AddUnit(*it);
 	}
 }
 
@@ -374,7 +368,7 @@ CWaitCommandsAI::KeyType CWaitCommandsAI::Wait::GetKeyFromFloat(float f)
 
 void CWaitCommandsAI::Wait::PostLoad()
 {
-	deadTime = time(NULL) + maxNetDelay;
+	deadTime = spring_gettime() + spring_secs(maxNetDelay);
 }
 
 // static
@@ -389,7 +383,7 @@ CWaitCommandsAI::Wait::Wait(float _code)
 {
 	key = 0;
 	valid = false;
-	deadTime = time(NULL) + maxNetDelay;
+	deadTime = spring_gettime() + spring_secs(maxNetDelay);
 }
 
 
@@ -452,25 +446,25 @@ void CWaitCommandsAI::Wait::SendCommand(const Command& cmd,
 		return;
 	}
 
-	const CUnitSet& selUnits = selectedUnits.selectedUnits;
+	const CUnitSet& selUnits = selectedUnitsHandler.selectedUnits;
 	if (unitSet == selUnits) {
-		selectedUnits.GiveCommand(cmd, false);
+		selectedUnitsHandler.GiveCommand(cmd, false);
 		return;
 	}
 
 	CUnitSet tmpSet = selUnits;
 	CUnitSet::const_iterator it;
 
-	selectedUnits.ClearSelected();
+	selectedUnitsHandler.ClearSelected();
 	for (it = unitSet.begin(); it != unitSet.end(); ++it) {
-		selectedUnits.AddUnit(*it);
+		selectedUnitsHandler.AddUnit(*it);
 	}
 
-	selectedUnits.GiveCommand(cmd, false);
+	selectedUnitsHandler.GiveCommand(cmd, false);
 
-	selectedUnits.ClearSelected();
+	selectedUnitsHandler.ClearSelected();
 	for (it = tmpSet.begin(); it != tmpSet.end(); ++it) {
-		selectedUnits.AddUnit(*it);
+		selectedUnitsHandler.AddUnit(*it);
 	}
 }
 
@@ -539,9 +533,9 @@ CWaitCommandsAI::TimeWait::TimeWait(const Command& cmd, CUnit* _unit)
 	Command waitCmd(CMD_WAIT, cmd.options, code);
 	waitCmd.PushParam(GetFloatFromKey(key));
 
-	selectedUnits.ClearSelected();
-	selectedUnits.AddUnit(unit);
-	selectedUnits.GiveCommand(waitCmd);
+	selectedUnitsHandler.ClearSelected();
+	selectedUnitsHandler.AddUnit(unit);
+	selectedUnitsHandler.GiveCommand(waitCmd);
 
 	AddDeathDependence(unit, DEPENDENCE_WAITCMD);
 
@@ -676,7 +670,7 @@ CWaitCommandsAI::DeathWait::DeathWait(const Command& cmd)
 {
 	GML_RECMUTEX_LOCK(sel); // DeathWait
 
-	const CUnitSet& selUnits = selectedUnits.selectedUnits;
+	const CUnitSet& selUnits = selectedUnitsHandler.selectedUnits;
 
 	if (cmd.params.size() == 1) {
 		const int unitID = (int)cmd.params[0];
@@ -718,7 +712,7 @@ CWaitCommandsAI::DeathWait::DeathWait(const Command& cmd)
 
 	Command waitCmd(CMD_WAIT, cmd.options, code);
 	waitCmd.PushParam(GetFloatFromKey(key));
-	selectedUnits.GiveCommand(waitCmd);
+	selectedUnitsHandler.GiveCommand(waitCmd);
 
 	CUnitSet::iterator it;
 	for (it = waitUnits.begin(); it != waitUnits.end(); ++it) {
@@ -898,7 +892,7 @@ CWaitCommandsAI::SquadWait::SquadWait(const Command& cmd)
 		return;
 	}
 
-	const CUnitSet& selUnits = selectedUnits.selectedUnits;
+	const CUnitSet& selUnits = selectedUnitsHandler.selectedUnits;
 	CUnitSet::const_iterator it;
 	for (it = selUnits.begin(); it != selUnits.end(); ++it) {
 		CUnit* unit = *it;
@@ -1050,7 +1044,7 @@ CWaitCommandsAI::GatherWait::GatherWait(const Command& cmd)
 	}
 
 	// only add valid units
-	const CUnitSet& selUnits = selectedUnits.selectedUnits;
+	const CUnitSet& selUnits = selectedUnitsHandler.selectedUnits;
 	CUnitSet::const_iterator sit;
 	for (sit = selUnits.begin(); sit != selUnits.end(); ++sit) {
 		CUnit* unit = *sit;
@@ -1069,7 +1063,7 @@ CWaitCommandsAI::GatherWait::GatherWait(const Command& cmd)
 
 	Command waitCmd(CMD_WAIT, SHIFT_KEY, code);
 	waitCmd.PushParam(GetFloatFromKey(key));
-	selectedUnits.GiveCommand(waitCmd, true);
+	selectedUnitsHandler.GiveCommand(waitCmd, true);
 
 	CUnitSet::iterator wit;
 	for (wit = waitUnits.begin(); wit != waitUnits.end(); ++wit) {

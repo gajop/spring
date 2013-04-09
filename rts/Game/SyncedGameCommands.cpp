@@ -8,7 +8,7 @@
 #include "InMapDraw.h"
 #include "Player.h"
 #include "PlayerHandler.h"
-#include "SelectedUnits.h"
+#include "SelectedUnitsHandler.h"
 #include "SyncedActionExecutor.h"
 #ifdef _WIN32
 #  include "winerror.h" // TODO someone on windows (MinGW? VS?) please check if this is required
@@ -56,7 +56,7 @@ public:
 
 	bool Execute(const SyncedAction& action) const {
 		SetBoolArg(gs->noHelperAIs, action.GetArgs());
-		selectedUnits.PossibleCommandChange(NULL);
+		selectedUnitsHandler.PossibleCommandChange(NULL);
 		LogSystemStatus("LuaUI control", gs->noHelperAIs);
 		return true;
 	}
@@ -176,7 +176,7 @@ public:
 			CUnit* unit = unitHandler->GetUnit(unitId);
 
 			if (unit != NULL) {
-				unit->KillUnit(false, false, 0);
+				unit->KillUnit(NULL, false, false);
 			} else {
 				LOG("Wrong unitID: %i", unitId);
 			}
@@ -274,24 +274,27 @@ public:
 		//     but this is no longer the case so we now let any player execute them (for MP
 		//     it does not matter who does so since they are not meant to be used there ITFP
 		//     and no less sync-safe)
-		if (action.GetArgs() == "reload") {
+		if (action.GetArgs() == "reload" || action.GetArgs() == "enable") {
 			if (!gs->cheatEnabled) {
-				LOG_L(L_WARNING, "Cheating required to reload synced scripts");
+				LOG_L(L_WARNING, "Cheating required to load synced scripts");
 			} else {
-
-				GML_MSTMUTEX_DOUNLOCK(sim); // temporarily unlock this mutex to prevent a deadlock
-				{
-					GML_STDMUTEX_LOCK(draw); // the draw thread accesses luaRules in too many places, so we lock the entire draw thread
-
-					CLuaRules::FreeHandler();
-					CLuaRules::LoadHandler();
-				}
-				GML_MSTMUTEX_DOLOCK(sim); // restore unlocked mutex
-
-				if (luaRules) {
-					LOG("LuaRules reloaded");
+				if (luaRules != NULL && action.GetArgs() == "enable") {
+					LOG_L(L_WARNING, "LuaRules is already loaded");
 				} else {
-					LOG_L(L_ERROR, "LuaRules reload failed");
+					GML_MSTMUTEX_DOUNLOCK(sim); // temporarily unlock this mutex to prevent a deadlock
+					{
+						GML_STDMUTEX_LOCK(draw); // the draw thread accesses luaRules in too many places, so we lock the entire draw thread
+
+						CLuaRules::FreeHandler();
+						CLuaRules::LoadHandler();
+					}
+					GML_MSTMUTEX_DOLOCK(sim); // restore unlocked mutex
+
+					if (luaRules) {
+						LOG("LuaRules loaded");
+					} else {
+						LOG_L(L_ERROR, "LuaRules loading failed");
+					}
 				}
 			}
 		} else if (action.GetArgs() == "disable") {
@@ -334,17 +337,21 @@ public:
 			return false;
 		}
 
-		if (action.GetArgs() == "reload") {
+		if (action.GetArgs() == "reload" || action.GetArgs() == "enable") {
 			if (!gs->cheatEnabled) {
-				LOG_L(L_WARNING, "Cheating required to reload synced scripts");
+				LOG_L(L_WARNING, "Cheating required to load synced scripts");
 			} else {
-				CLuaGaia::FreeHandler();
-				CLuaGaia::LoadHandler();
-
-				if (luaGaia) {
-					LOG("LuaGaia reloaded");
+				if (luaGaia != NULL && action.GetArgs() == "enable") {
+					LOG_L(L_WARNING, "LuaGaia is already loaded");
 				} else {
-					LOG_L(L_ERROR, "LuaGaia reload failed");
+					CLuaGaia::FreeHandler();
+					CLuaGaia::LoadHandler();
+
+					if (luaGaia) {
+						LOG("LuaGaia loaded");
+					} else {
+						LOG_L(L_ERROR, "LuaGaia loading failed");
+					}
 				}
 			}
 		} else if (action.GetArgs() == "disable") {

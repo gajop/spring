@@ -7,7 +7,7 @@
 #include "ExternalAI/EngineOutHandler.h"
 #include "ExternalAI/SkirmishAIHandler.h"
 #include "Game/GlobalUnsynced.h"
-#include "Game/SelectedUnits.h"
+#include "Game/SelectedUnitsHandler.h"
 #include "Game/WaitCommandsAI.h"
 #include "Lua/LuaRules.h"
 #include "Map/Ground.h"
@@ -67,8 +67,9 @@ CR_REG_METADATA(CCommandAI, (
 	CR_MEMBER(repeatOrders),
 	CR_MEMBER(lastSelectedCommandPage),
 	CR_MEMBER(unimportantMove),
+	CR_MEMBER(commandDeathDependences),
 	CR_MEMBER(targetLostTimer),
-	CR_RESERVED(64),
+
 	CR_POSTLOAD(PostLoad)
 ));
 
@@ -624,13 +625,13 @@ bool CCommandAI::ExecuteStateCommand(const Command& c)
 		case CMD_FIRE_STATE: {
 			owner->fireState = (int)c.params[0];
 			SetCommandDescParam0(c);
-			selectedUnits.PossibleCommandChange(owner);
+			selectedUnitsHandler.PossibleCommandChange(owner);
 			return true;
 		}
 		case CMD_MOVE_STATE: {
 			owner->moveState = (int)c.params[0];
 			SetCommandDescParam0(c);
-			selectedUnits.PossibleCommandChange(owner);
+			selectedUnitsHandler.PossibleCommandChange(owner);
 			return true;
 		}
 		case CMD_REPEAT: {
@@ -644,13 +645,13 @@ bool CCommandAI::ExecuteStateCommand(const Command& c)
 				return false;
 			}
 			SetCommandDescParam0(c);
-			selectedUnits.PossibleCommandChange(owner);
+			selectedUnitsHandler.PossibleCommandChange(owner);
 			return true;
 		}
 		case CMD_TRAJECTORY: {
 			owner->useHighTrajectory = !!c.params[0];
 			SetCommandDescParam0(c);
-			selectedUnits.PossibleCommandChange(owner);
+			selectedUnitsHandler.PossibleCommandChange(owner);
 			return true;
 		}
 		case CMD_ONOFF: {
@@ -664,7 +665,7 @@ bool CCommandAI::ExecuteStateCommand(const Command& c)
 				return false;
 			}
 			SetCommandDescParam0(c);
-			selectedUnits.PossibleCommandChange(owner);
+			selectedUnitsHandler.PossibleCommandChange(owner);
 			return true;
 		}
 		case CMD_CLOAK: {
@@ -679,7 +680,7 @@ bool CCommandAI::ExecuteStateCommand(const Command& c)
 				return false;
 			}
 			SetCommandDescParam0(c);
-			selectedUnits.PossibleCommandChange(owner);
+			selectedUnitsHandler.PossibleCommandChange(owner);
 			return true;
 		}
 		case CMD_STOCKPILE: {
@@ -1483,7 +1484,7 @@ void CCommandAI::UpdateStockpileIcon()
 			        stockpileWeapon->numStockpiled,
 			        stockpileWeapon->numStockpiled + stockpileWeapon->numStockpileQued);
 			pci->name = name;
-			selectedUnits.PossibleCommandChange(owner);
+			selectedUnitsHandler.PossibleCommandChange(owner);
 		}
 	}
 }
@@ -1576,7 +1577,7 @@ bool CCommandAI::HasMoreMoveCommands()
 bool CCommandAI::SkipParalyzeTarget(const CUnit* target)
 {
 	// check to see if we are about to paralyze a unit that is already paralyzed
-	if ((target == NULL) || (owner->weapons.size() <= 0)) {
+	if ((target == NULL) || (owner->weapons.empty())) {
 		return false;
 	}
 	const CWeapon* w = owner->weapons.front();

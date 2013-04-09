@@ -12,7 +12,7 @@
 #include "ExternalAI/Interface/SSkirmishAILibrary.h"
 #include "Game/GlobalUnsynced.h" // for myTeam
 #include "Game/GameVersion.h"
-#include "Game/SelectedUnits.h"
+#include "Game/SelectedUnitsHandler.h"
 #include "Game/UI/GuiHandler.h" //TODO: fix some switch for new gui
 #include "Map/ReadMap.h"
 #include "Map/MetalMap.h"
@@ -3763,11 +3763,8 @@ EXPORT(int) skirmishAiCallback_getFeatures(int skirmishAIId, int* featureIds, in
 
 		return featureIds_size;
 	} else {
-		// non cheating
-		int featureIds_size = -1;
-
 		// if (featureIds == NULL), this will only return the number of features
-		featureIds_size = skirmishAIId_callback[skirmishAIId]->GetFeatures(featureIds, featureIds_sizeMax);
+		const int featureIds_size = skirmishAIId_callback[skirmishAIId]->GetFeatures(featureIds, featureIds_sizeMax);
 
 		return featureIds_size;
 	}
@@ -3795,11 +3792,8 @@ EXPORT(int) skirmishAiCallback_getFeaturesIn(int skirmishAIId, float* pos_posF3,
 
 		return featureIds_size;
 	} else {
-		// non cheating
-		int featureIds_size = -1;
-
 		// if (featureIds == NULL), this will only return the number of features
-		featureIds_size = skirmishAIId_callback[skirmishAIId]->GetFeatures(featureIds, featureIds_sizeMax, pos_posF3, radius);
+		const int featureIds_size = skirmishAIId_callback[skirmishAIId]->GetFeatures(featureIds, featureIds_sizeMax, pos_posF3, radius);
 
 		return featureIds_size;
 	}
@@ -4532,7 +4526,7 @@ EXPORT(bool) skirmishAiCallback_Group_isSelected(int skirmishAIId, int groupId) 
 
 	if (!isControlledByLocalPlayer(skirmishAIId)) return false;
 
-	return (selectedUnits.IsGroupSelected(groupId));
+	return (selectedUnitsHandler.IsGroupSelected(groupId));
 }
 
 //##############################################################################

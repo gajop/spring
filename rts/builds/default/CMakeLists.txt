@@ -75,6 +75,21 @@ if   (MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /vmg /MP")
 endif(MSVC)
 
+### Assemble defines
+ADD_DEFINITIONS(-DUSE_GML)
+
+if   (NOT MSVC)
+	# USE_GML requires this
+	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mno-tls-direct-seg-refs")
+endif(NOT MSVC)
+
+# USE_GML_SIM requires USE_GML
+ADD_DEFINITIONS(-DUSE_GML_SIM)
+
+if (USE_GML_DEBUG)
+	ADD_DEFINITIONS(-DUSE_GML_DEBUG)
+endif (USE_GML_DEBUG)
+
 ### Add icon and manifest to exe using windres
 IF    (WIN32)
 	IF   (MINGW)
@@ -87,14 +102,10 @@ ELSE  (WIN32)
 	SET(ENGINE_ICON "")
 ENDIF (WIN32)
 
-### allow engineLibraries to be used in multithreaded, too
-MakeGlobal(engineLibraries)
-MakeGlobal(engineIncludes)
-
 ### Build the executable
 ADD_EXECUTABLE(engine-default ${EXE_FLAGS} ${engineSources} ${ENGINE_ICON} ${engineHeaders})
-TARGET_LINK_LIBRARIES(engine-default ${engineLibraries})
-SET_TARGET_PROPERTIES(engine-default PROPERTIES OUTPUT_NAME "spring-singlethreaded")
+TARGET_LINK_LIBRARIES(engine-default gml ${engineLibraries})
+SET_TARGET_PROPERTIES(engine-default PROPERTIES OUTPUT_NAME "spring")
 
 
 ### Install the executable
@@ -114,8 +125,6 @@ CreateEngineBuildAndInstallTarget(default)
 # Create shortcuts
 # * make spring
 # * make install-spring
-add_custom_target(spring WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
 add_dependencies(spring spring-default) # This also works for custom targets
 
-add_custom_target(install-spring WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
 add_dependencies(install-spring install-spring-default) # This also works for custom targets

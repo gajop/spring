@@ -24,6 +24,9 @@
 	#include <sstream>
 	#include <unistd.h>
 	#include <time.h>
+
+	#include <sys/types.h>
+	#include <sys/stat.h>
 #else
 	#include <windows.h>
 	#include <io.h>
@@ -39,11 +42,6 @@
 #endif
 
 
-#ifndef _WIN32
-const int FileSystemAbstraction::nativePathSeparator = '/';
-#else
-const int FileSystemAbstraction::nativePathSeparator = '\\';
-#endif
 
 std::string FileSystemAbstraction::RemoveLocalPathPrefix(const std::string& path)
 {
@@ -58,16 +56,15 @@ std::string FileSystemAbstraction::RemoveLocalPathPrefix(const std::string& path
 
 bool FileSystemAbstraction::IsFSRoot(const std::string& p)
 {
-	bool isFsRoot = false;
 
 #ifdef WIN32
 	// examples: "C:\", "C:/", "C:", "c:", "D:"
-	isFsRoot = (p.length() >= 2 && p[1] == ':' &&
+	bool isFsRoot = (p.length() >= 2 && p[1] == ':' &&
 			((p[0] >= 'a' && p[0] <= 'z') || (p[0] >= 'A' && p[0] <= 'Z')) &&
 			(p.length() == 2 || (p.length() == 3 && IsPathSeparator(p[2]))));
 #else
 	// examples: "/"
-	isFsRoot = (p.length() == 1 && IsNativePathSeparator(p[0]));
+	bool isFsRoot = (p.length() == 1 && IsNativePathSeparator(p[0]));
 #endif
 
 	return isFsRoot;
@@ -86,10 +83,7 @@ bool FileSystemAbstraction::HasPathSepAtEnd(const std::string& path) {
 	bool pathSepAtEnd = false;
 
 	if (!path.empty()) {
-		const char lastChar = path.at(path.size() - 1);
-		if (IsNativePathSeparator(lastChar)) {
-			pathSepAtEnd = true;
-		}
+		pathSepAtEnd = IsNativePathSeparator(path.at(path.size() - 1));
 	}
 
 	return pathSepAtEnd;
@@ -248,6 +242,15 @@ std::string FileSystemAbstraction::GetFileModificationDate(const std::string& fi
 }
 
 
+char FileSystemAbstraction::GetNativePathSeparator()
+{
+	#ifndef _WIN32
+	return '/';
+	#else
+	return '\\';
+	#endif
+}
+
 bool FileSystemAbstraction::IsAbsolutePath(const std::string& path)
 {
 #ifdef WIN32
@@ -256,6 +259,7 @@ bool FileSystemAbstraction::IsAbsolutePath(const std::string& path)
 	return ((path.length() > 0) && (path[0] == '/'));
 #endif
 }
+
 
 /**
  * @brief creates a rwxr-xr-x dir in the writedir
@@ -278,13 +282,12 @@ bool FileSystemAbstraction::MkDir(const std::string& dir)
 		return true;
 	}
 
-	bool dirCreated = false;
 
 	// If it doesn't exist we try to mkdir it and return success if that succeeds.
 #ifndef _WIN32
-	dirCreated = (::mkdir(dir.c_str(), S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) == 0);
+	bool dirCreated = (::mkdir(dir.c_str(), S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) == 0);
 #else
-	dirCreated = (::_mkdir(StripTrailingSlashes(dir).c_str()) == 0);
+	bool dirCreated = (::_mkdir(StripTrailingSlashes(dir).c_str()) == 0);
 #endif
 
 	if (!dirCreated) {
@@ -307,16 +310,15 @@ bool FileSystemAbstraction::DeleteFile(const std::string& file)
 
 bool FileSystemAbstraction::FileExists(const std::string& file)
 {
-	bool fileExists = false;
 
 #ifdef _WIN32
 	struct _stat info;
 	const int ret = _stat(StripTrailingSlashes(file).c_str(), &info);
-	fileExists = ((ret == 0 && (info.st_mode & _S_IFREG)));
+	bool fileExists = ((ret == 0 && (info.st_mode & _S_IFREG)));
 #else
 	struct stat info;
 	const int ret = stat(file.c_str(), &info);
-	fileExists = ((ret == 0 && !S_ISDIR(info.st_mode)));
+	bool fileExists = ((ret == 0 && !S_ISDIR(info.st_mode)));
 #endif
 
 	return fileExists;
@@ -324,7 +326,6 @@ bool FileSystemAbstraction::FileExists(const std::string& file)
 
 bool FileSystemAbstraction::DirExists(const std::string& dir)
 {
-	bool dirExists = false;
 
 #ifdef _WIN32
 	struct _stat info;
@@ -337,11 +338,11 @@ bool FileSystemAbstraction::DirExists(const std::string& dir)
 		myDir += "\\";
 	}
 	const int ret = _stat(myDir.c_str(), &info);
-	dirExists = ((ret == 0) && (info.st_mode & _S_IFDIR));
+	bool dirExists = ((ret == 0) && (info.st_mode & _S_IFDIR));
 #else
 	struct stat info;
 	const int ret = stat(dir.c_str(), &info);
-	dirExists = ((ret == 0) && S_ISDIR(info.st_mode));
+	bool dirExists = ((ret == 0) && S_ISDIR(info.st_mode));
 #endif
 
 	return dirExists;
@@ -384,6 +385,64 @@ bool FileSystemAbstraction::DirIsWritable(const std::string& dir)
 	return (access(dir.c_str(), W_OK) == 0);
 #endif
 }
+
+
+bool FileSystemAbstraction::ComparePaths(const std::string& path1, const std::string& path2)
+{
+#ifdef _WIN32
+	bool ret = false;
+
+	HANDLE fh1 = CreateFile(path1.c_str(), // file to open
+			GENERIC_READ,                   // open for reading
+			FILE_SHARE_READ,                // share for reading
+			NULL,                           // default security
+			OPEN_EXISTING,                  // existing file only
+			FILE_ATTRIBUTE_NORMAL,          // normal file
+			NULL);                          // no attr. template
+
+	HANDLE fh2 = CreateFile(path2.c_str(), // file to open
+			GENERIC_READ,                   // open for reading
+			FILE_SHARE_READ,                // share for reading
+			NULL,                           // default security
+			OPEN_EXISTING,                  // existing file only
+			FILE_ATTRIBUTE_NORMAL,          // normal file
+			NULL);                          // no attr. template
+
+	if ((fh1 != INVALID_HANDLE_VALUE) && (fh2 != INVALID_HANDLE_VALUE)) {
+		BY_HANDLE_FILE_INFORMATION info1, info2;
+
+		BOOL fine;
+		fine  = GetFileInformationByHandle(fh1, &info1);
+		fine = GetFileInformationByHandle(fh2, &info2) && fine;
+
+		if (fine) {
+			ret =
+				   (info1.nFileIndexLow == info2.nFileIndexLow)
+				&& (info1.nFileIndexHigh == info2.nFileIndexHigh)
+				&& (info1.dwVolumeSerialNumber == info2.dwVolumeSerialNumber);
+		} else {
+			//GetLastError()
+		}
+	}
+
+	CloseHandle(fh1);
+	CloseHandle(fh2);
+
+	return ret;
+#else
+	int r = 0;
+	struct stat s1, s2;
+	r  = stat(path1.c_str(), &s1);
+	r |= stat(path2.c_str(), &s2);
+
+	if (r != 0) {
+		return false;
+	}
+
+	return (s1.st_ino == s2.st_ino) && (s1.st_dev == s2.st_dev);
+#endif
+}
+
 
 std::string FileSystemAbstraction::GetCwd()
 {
@@ -490,3 +549,4 @@ void FileSystemAbstraction::FindFiles(std::vector<std::string>& matches, const s
 	const boost::regex regexPattern(regex);
 	::FindFiles(matches, dataDir, dir, regexPattern, flags);
 }
+
