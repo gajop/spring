@@ -5,9 +5,11 @@
 
 #include <string>
 #include <list>
+#include <map>
 #include <limits.h> // for INT_MAX
 
 #include "System/float4.h"
+#include "System/Misc/lrumap.h"
 
 #undef GetCharWidth // winapi.h
 
@@ -30,6 +32,7 @@ static const int FONT_SCALE       = 1 << 12; //! given size argument will be tre
 static const int FONT_NEAREST     = 1 << 13; //! round x,y render pos to nearest integer, so there is no interpolation blur for small fontsizes
 
 class CVertexArray;
+class CFontTextureRenderer;
 class CglFont
 {
 public:
@@ -64,14 +67,14 @@ public:
 	void SetOutlineColor(const float& r, const float& g, const float& b, const float& a) { const float4 f = float4(r,g,b,a); SetOutlineColor(&f); };
 
 	//! Adds \n's (and '...' if it would be too high) until the text fits into maxWidth/maxHeight
-	int WrapInPlace(std::string& text, float fontSize, const float maxWidth, const float maxHeight = 1e9) const;
-	std::list<std::string> Wrap(const std::string& text, float fontSize, const float maxWidth, const float maxHeight = 1e9) const;
+	int WrapInPlace(std::string& text, float fontSize, const float maxWidth, const float maxHeight = 1e9);
+	std::list<std::string> Wrap(const std::string& text, float fontSize, const float maxWidth, const float maxHeight = 1e9);
 
-	float GetKerning(const unsigned int left_char, const unsigned int right_char) const;
-	float GetCharacterWidth(const unsigned char c) const;
-	float GetTextWidth(const std::string& text) const;
-	float GetTextHeight(const std::string& text, float* descender = NULL, int* numLines = NULL) const;
-	int   GetTextNumLines(const std::string& text) const;
+	float GetKerning(const unsigned int left_char, const unsigned int right_char);
+	float GetCharacterWidth(const unsigned char c);
+	float GetTextWidth(const std::string& text);
+	float GetTextHeight(const std::string& text, float* descender = NULL, int* numLines = NULL);
+	int   GetTextNumLines(const std::string& text);
 	static std::string StripColorCodes(const std::string& text);
 
 	inline float GetLineHeight()     const { return lineHeight; }
@@ -91,31 +94,23 @@ public:
 
 	static const char ColorCodeIndicator = '\xFF'; //FIXME use a non-printable char? (<32)
 	static const char ColorResetIndicator = '\x08'; //! =: '\\b'
-
+	
 public:
 	typedef std::vector<float4> ColorMap;
 
 	struct GlyphInfo
 	{
-		GlyphInfo()
-		{
-			u0  = v0  = u1  = v1  = 1.0f;
-			x0  = y0  = x1  = y1  = 0.0f;
-			us0 = vs0 = us1 = vs1 = 1.0f;
-			advance = height = 1.0f;
-			descender = 0.0f;
-
-			for (int i = 0; i <= 255; i++) {
-				kerning[i] = 1.0f;
-			}
-		};
+		GlyphInfo();
 
 		float u0, v0, u1, v1;
 		float x0, y0, x1, y1;
 		float us0, vs0, us1, vs1; //! shadow texcoords
 		float advance, height, descender;
-		float kerning[256];
-	} glyphs[256];
+		lrumap<int, float> kerning;
+		float generateKerning(int unicode);
+        void operator=(const CglFont::GlyphInfo& glyphInfo);
+	};
+    lrumap<int, GlyphInfo> glyphs;
 
 private:
 	static const float4* ChooseOutlineColor(const float4& textColor);
@@ -151,16 +146,18 @@ private:
 		bool forceLineBreak;
 	};
 
-	word SplitWord(word& w, float wantedWidth, bool smart = true) const;
+	word SplitWord(word& w, float wantedWidth, bool smart = true);
 
-	void SplitTextInWords(const std::string& text, std::list<word>* words, std::list<colorcode>* colorcodes) const;
+	void SplitTextInWords(const std::string& text, std::list<word>* words, std::list<colorcode>* colorcodes);
 	void RemergeColorCodes(std::list<word>* words, std::list<colorcode>& colorcodes) const;
 
-	void AddEllipsis(std::list<line>& lines, std::list<word>& words, float maxWidth) const;
+	void AddEllipsis(std::list<line>& lines, std::list<word>& words, float maxWidth);
 
-	void WrapTextConsole(std::list<word>& words, float maxWidth, float maxHeight) const;
-	void WrapTextKnuth(std::list<word>& words, float maxWidth, float maxHeight) const;
+	void WrapTextConsole(std::list<word>& words, float maxWidth, float maxHeight);
+	void WrapTextKnuth(std::list<word>& words, float maxWidth, float maxHeight);
 
+	CglFont::GlyphInfo generateGlyph(int unicode);
+	
 private:
 	float fontSize;
 	float fontDescender;
@@ -194,9 +191,14 @@ private:
 	//! \::ColorResetIndicator will reset to those (they are the colors set when glPrint was called)
 	float4 baseTextColor;
 	float4 baseOutlineColor;
+	
+	const float invSize;
+	const float normScale;
+    CFontTextureRenderer* texRenderer;
 };
 
 extern CglFont* font;
 extern CglFont* smallFont;
+//extern CFontTextureRendrer;
 
 #endif /* _GLFONT_H */

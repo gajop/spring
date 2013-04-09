@@ -13,6 +13,7 @@
 #include <boost/bind.hpp>
 
 #include <SDL_keyboard.h>
+#include <SDL.h>
 
 
 #include "Game.h"
@@ -1257,6 +1258,12 @@ bool CGame::Draw() {
 	}
 
 	if (userWriting) {
+        SDL_Rect inputRect;
+        inputRect.x = inputTextPosX;
+        inputRect.y = inputTextPosY;
+        inputRect.w = inputTextSizeX;
+        inputRect.h = inputTextSizeY;
+        //SDL_SetTextInputRect(inputRect);
 		DrawInputText();
 	}
 

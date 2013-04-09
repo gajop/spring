@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdexcept>
+#include <boost/bind.hpp>
+#include <boost/functional.hpp>
 #ifndef   HEADLESS
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -24,6 +26,8 @@
 #include "System/Exceptions.h"
 #include "System/float4.h"
 #include "System/bitops.h"
+
+#include "lib/utf8/utf8.h"
 
 #undef GetCharWidth // winapi.h
 
@@ -44,6 +48,7 @@ LOG_REGISTER_SECTION_GLOBAL(LOG_SECTION_FONT)
 
 CglFont* font;
 CglFont* smallFont;
+FT_Face face;
 
 #define GLYPH_MARGIN 2 //! margin between glyphs in texture-atlas
 
@@ -152,8 +157,8 @@ static const char* GetFTError(FT_Error e)
 class CFontTextureRenderer
 {
 public:
-	CFontTextureRenderer(int _outlinewidth, int _outlineweight)
-		: texWidth(0), texHeight(0),
+	CFontTextureRenderer(int _outlinewidth, int _outlineweight, CglFont* font)
+		: texWidth(0), texHeight(0), font(font), 
 		outlinewidth(_outlinewidth), outlineweight(_outlineweight),
 		atlas(NULL),
 		cur(NULL),
@@ -161,14 +166,15 @@ public:
 		curHeight(0),
 		numGlyphs(0),
 		maxGlyphWidth(0), maxGlyphHeight(0),
-		numPixels(0)
+		numPixels(0),
+        glyphs(boost::bind(&CFontTextureRenderer::AddGlyph, this, _1), 1024)
 	{
 	};
 
 	GLuint CreateTexture();
 
-	void AddGlyph(unsigned int index, int xsize, int ysize, unsigned char* pixels, int pitch);
-	void GetGlyph(unsigned int index, CglFont::GlyphInfo* g) const;
+	//void AddGlyph(unsigned int index, int xsize, int ysize, unsigned char* pixels, int pitch);
+	void GetGlyph(unsigned int index, CglFont::GlyphInfo* g);
 
 	int texWidth, texHeight;
 private:
@@ -184,8 +190,10 @@ private:
 		int ysize;
 		int u,v;
 		int us,vs;
-	} glyphs[256];
+	};
+    lrumap<int, GlyphInfo> glyphs;
 
+    GlyphInfo AddGlyph(unsigned unicode);
 private:
 	std::list<int2> sortByHeight;
 
@@ -195,6 +203,7 @@ private:
 	unsigned char* cur;
 	int curX, curY;
 	int curHeight;         //! height of highest glyph in current line
+    CglFont* font;
 
 	unsigned int numGlyphs;
 	unsigned int maxGlyphWidth, maxGlyphHeight;
@@ -271,9 +280,9 @@ void CFontTextureRenderer::CopyGlyphsIntoBitmapAtlas(bool outline)
 
 
 
-void CFontTextureRenderer::GetGlyph(unsigned int index, CglFont::GlyphInfo* g) const
+void CFontTextureRenderer::GetGlyph(unsigned int index, CglFont::GlyphInfo* g)
 {
-	const GlyphInfo& gi = glyphs[index];
+	GlyphInfo& gi = glyphs[index];
 	g->u0 = gi.u / (float)texWidth;
 	g->v0 = gi.v / (float)texHeight;
 	g->u1 = (gi.u+gi.xsize) / (float)texWidth;
@@ -284,10 +293,20 @@ void CFontTextureRenderer::GetGlyph(unsigned int index, CglFont::GlyphInfo* g) c
 	g->vs1 = (gi.vs+gi.ysize+2*outlinewidth) / (float)texHeight;
 }
 
-
-void CFontTextureRenderer::AddGlyph(unsigned int index, int xsize, int ysize, unsigned char* pixels, int pitch)
+CFontTextureRenderer::GlyphInfo CFontTextureRenderer::AddGlyph(unsigned unicode)
 {
-	GlyphInfo& g = glyphs[index];
+	GlyphInfo g;
+    FT_Error error = FT_Load_Char(face, unicode, FT_LOAD_RENDER);
+    if (error) {
+        return g;
+    }
+    FT_GlyphSlot slot = face->glyph;
+//    texRenderer->AddGlyph(unicode, slot->bitmap.width, slot->bitmap.rows, slot->bitmap.buffer, slot->bitmap.pitch);
+    int xsize = slot->bitmap.width;
+    int ysize = slot->bitmap.rows;
+    unsigned char* pixels = slot->bitmap.buffer;
+    int pitch = slot->bitmap.pitch;
+
 	g.xsize = xsize;
 	g.ysize = ysize;
 	g.pixels = new unsigned char[xsize*ysize];
@@ -308,7 +327,8 @@ void CFontTextureRenderer::AddGlyph(unsigned int index, int xsize, int ysize, un
 	if (xsize>maxGlyphWidth)  maxGlyphWidth  = xsize;
 	if (ysize>maxGlyphHeight) maxGlyphHeight = ysize;
 
-	sortByHeight.push_back(int2(index,ysize));
+	sortByHeight.push_back(int2(unicode,ysize));
+    return g;
 }
 
 
@@ -408,6 +428,82 @@ GLuint CFontTextureRenderer::CreateTexture()
 /*******************************************************************************/
 /*******************************************************************************/
 
+
+CglFont::GlyphInfo CglFont::generateGlyph(int unicode) {
+    CglFont::GlyphInfo g;
+
+    //! translate WinLatin (codepage-1252) to Unicode (used by freetype)
+//    int unicode = WinLatinToUnicode(unicode);
+
+    //! convert to an anti-aliased bitmap
+
+    FT_Error error = FT_Load_Char(face, unicode, FT_LOAD_RENDER);
+    if (error) {
+        return g;
+    }
+    FT_GlyphSlot slot = face->glyph;
+
+    //! Keep sign!
+    const float ybearing = slot->metrics.horiBearingY * normScale;
+    const float xbearing = slot->metrics.horiBearingX * normScale;
+
+    g.advance   = slot->advance.x * normScale;
+    g.height    = slot->metrics.height * normScale;
+    g.descender = ybearing - g.height;
+
+    g.x0 = xbearing;
+    g.y0 = ybearing - fontDescender;
+    g.x1 = (xbearing + slot->metrics.width * normScale);
+    g.y1 = g.y0 - g.height;
+
+    return g;
+}
+
+CglFont::GlyphInfo::GlyphInfo() : 
+    kerning(boost::bind(&CglFont::GlyphInfo::generateKerning, this, _1), 64) {
+	u0  = v0  = u1  = v1  = 1.0f;
+	x0  = y0  = x1  = y1  = 0.0f;
+	us0 = vs0 = us1 = vs1 = 1.0f;
+	advance = height = 1.0f;
+	descender = 0.0f;
+}
+
+void CglFont::GlyphInfo::operator=(const CglFont::GlyphInfo& glyphInfo) {
+    u0 = glyphInfo.u0;
+    v0 = glyphInfo.v0;
+    u1 = glyphInfo.u1;
+    v1 = glyphInfo.v1;
+    
+    x0 = glyphInfo.y0;
+    y0 = glyphInfo.y0;
+	x1 = glyphInfo.x1;
+    y1 = glyphInfo.y1;
+
+    us0 = glyphInfo.us0;
+    vs0 = glyphInfo.vs0;
+    us1 = glyphInfo.us1;
+    vs1 = glyphInfo.vs1;
+
+    advance = glyphInfo.advance;
+    height = glyphInfo.height;
+    descender = glyphInfo.descender;
+}
+
+float CglFont::GlyphInfo::generateKerning(int unicode) {
+    /*GlyphInfo& g = glyphs[i];
+    //		int unicode = WinLatinToUnicode(i);
+    FT_UInt left_glyph = FT_Get_Char_Index(face, unicode);
+    for (unsigned int j = 0; j <= 255; j++) {
+        //			unicode = WinLatinToUnicode(j);
+        FT_UInt right_glyph = FT_Get_Char_Index(face, unicode);
+        FT_Vector kerning;
+        kerning.x = kerning.y = 0.0f;
+        FT_Get_Kerning(face, left_glyph, right_glyph, FT_KERNING_DEFAULT, &kerning);
+        g.kerning[j] = g.advance + normScale * static_cast<float>(kerning.x);
+    }*/
+	return 1;
+}
+
 CglFont::CglFont(const std::string& fontfile, int size, int _outlinewidth, float _outlineweight):
 	fontSize(size),
 	fontPath(fontfile),
@@ -415,7 +511,10 @@ CglFont::CglFont(const std::string& fontfile, int size, int _outlinewidth, float
 	outlineWeight(_outlineweight),
 	inBeginEnd(false),
 	autoOutlineColor(true),
-	setColor(false)
+	setColor(false),
+	glyphs(boost::bind(&CglFont::generateGlyph, this, _1), 1024),
+	invSize(1.0f / size),
+	normScale(invSize / 64.0f)
 {
 	va  = new CVertexArray();
 	va2 = new CVertexArray();
@@ -430,10 +529,7 @@ CglFont::CglFont(const std::string& fontfile, int size, int _outlinewidth, float
 	chars     = (charend - charstart) + 1;
 
 #ifndef   HEADLESS
-	const float invSize = 1.0f / size;
-	const float normScale = invSize / 64.0f;
-	FT_Library library;
-	FT_Face face;
+	FT_Library library;	
 
 	//! initialize Freetype2 library
 	FT_Error error = FT_Init_FreeType(&library);
@@ -501,60 +597,16 @@ CglFont::CglFont(const std::string& fontfile, int size, int _outlinewidth, float
 	}
 
 	//! used to create the glyph textureatlas
-	CFontTextureRenderer texRenderer(outlineWidth, outlineWeight);
-
-	for (unsigned int i = charstart; i <= charend; i++) {
-		GlyphInfo* g = &glyphs[i];
-
-		//! translate WinLatin (codepage-1252) to Unicode (used by freetype)
-		int unicode = WinLatinToUnicode(i);
-
-		//! convert to an anti-aliased bitmap
-		error = FT_Load_Char(face, unicode, FT_LOAD_RENDER);
-		if ( error ) {
-			continue;
-		}
-		FT_GlyphSlot slot = face->glyph;
-
-		//! Keep sign!
-		const float ybearing = slot->metrics.horiBearingY * normScale;
-		const float xbearing = slot->metrics.horiBearingX * normScale;
-
-		g->advance   = slot->advance.x * normScale;
-		g->height    = slot->metrics.height * normScale;
-		g->descender = ybearing - g->height;
-
-		g->x0 = xbearing;
-		g->y0 = ybearing - fontDescender;
-		g->x1 = (xbearing + slot->metrics.width * normScale);
-		g->y1 = g->y0 - g->height;
-
-		texRenderer.AddGlyph(i, slot->bitmap.width, slot->bitmap.rows, slot->bitmap.buffer, slot->bitmap.pitch);
-	}
+	texRenderer = new CFontTextureRenderer(outlineWidth, outlineWeight, this);
 
 	//! create font atlas texture
-	fontTexture = texRenderer.CreateTexture();
-	texWidth  = texRenderer.texWidth;
-	texHeight = texRenderer.texHeight;
+	fontTexture = texRenderer->CreateTexture();
+	texWidth  = texRenderer->texWidth;
+	texHeight = texRenderer->texHeight;
 
 	//! get glyph's uv coords in the atlas
 	for (unsigned int i = charstart; i <= charend; i++) {
-		texRenderer.GetGlyph(i,&glyphs[i]);
-	}
-
-	//! generate kerning tables
-	for (unsigned int i = charstart; i <= charend; i++) {
-		GlyphInfo& g = glyphs[i];
-		int unicode = WinLatinToUnicode(i);
-		FT_UInt left_glyph = FT_Get_Char_Index(face, unicode);
-		for (unsigned int j = 0; j <= 255; j++) {
-			unicode = WinLatinToUnicode(j);
-			FT_UInt right_glyph = FT_Get_Char_Index(face, unicode);
-			FT_Vector kerning;
-			kerning.x = kerning.y = 0.0f;
-			FT_Get_Kerning(face, left_glyph, right_glyph, FT_KERNING_DEFAULT, &kerning);
-			g.kerning[j] = g.advance + normScale * static_cast<float>(kerning.x);
-		}
+		texRenderer->GetGlyph(i,&glyphs[i]);
 	}
 
 	//! initialize null char
@@ -748,19 +800,19 @@ std::string CglFont::StripColorCodes(const std::string& text)
 }
 
 
-float CglFont::GetKerning(const unsigned int left_char, const unsigned int right_char) const
+float CglFont::GetKerning(const unsigned int left_char, const unsigned int right_char)
 {
 	return glyphs[left_char].kerning[right_char];
 }
 
 
-float CglFont::GetCharacterWidth(const unsigned char c) const
+float CglFont::GetCharacterWidth(const unsigned char c)
 {
 	return glyphs[c].advance;
 }
 
 
-float CglFont::GetTextWidth(const std::string& text) const
+float CglFont::GetTextWidth(const std::string& text)
 {
 	if (text.size()==0) return 0.0f;
 
@@ -815,7 +867,7 @@ float CglFont::GetTextWidth(const std::string& text) const
 }
 
 
-float CglFont::GetTextHeight(const std::string& text, float* descender, int* numLines) const
+float CglFont::GetTextHeight(const std::string& text, float* descender, int* numLines)
 {
 	if (text.empty()) {
 		if (descender) *descender = 0.0f;
@@ -855,7 +907,7 @@ float CglFont::GetTextHeight(const std::string& text, float* descender, int* num
 			//! printable char
 			default:
 				const unsigned char* uc = reinterpret_cast<const unsigned char*>(&c);
-				const GlyphInfo* g = &glyphs[ *uc ];
+				GlyphInfo* g = &glyphs[ *uc ];
 				if (g->descender < d) d = g->descender;
 				if (multiLine < 2 && g->height > h) h = g->height; //! only calc height for the first line
 		}
@@ -869,7 +921,7 @@ float CglFont::GetTextHeight(const std::string& text, float* descender, int* num
 }
 
 
-int CglFont::GetTextNumLines(const std::string& text) const
+int CglFont::GetTextNumLines(const std::string& text)
 {
 	if (text.empty())
 		return 0;
@@ -956,7 +1008,7 @@ static inline float GetPenalty(const unsigned char& c, unsigned int strpos, unsi
 }
 
 
-CglFont::word CglFont::SplitWord(CglFont::word& w, float wantedWidth, bool smart) const
+CglFont::word CglFont::SplitWord(CglFont::word& w, float wantedWidth, bool smart)
 {
 	//! returns two pieces 'L'eft and 'R'ight of the split word (returns L, *wi becomes R)
 
@@ -982,7 +1034,7 @@ CglFont::word CglFont::SplitWord(CglFont::word& w, float wantedWidth, bool smart
 			unsigned int i = 0;
 			const unsigned char* c = reinterpret_cast<const unsigned char*>(&w.text[i]);
 			do {
-				const GlyphInfo& g = glyphs[*c];
+				GlyphInfo& g = glyphs[*c];
 				++i;
 
 				if (i < w.text.length()) {
@@ -1019,7 +1071,7 @@ CglFont::word CglFont::SplitWord(CglFont::word& w, float wantedWidth, bool smart
 		do {
 			const unsigned char* co = c;
 			unsigned int io = i;
-			const GlyphInfo& g = glyphs[*c];
+			GlyphInfo& g = glyphs[*c];
 			++i;
 
 			if (i < w.text.length()) {
@@ -1049,7 +1101,7 @@ CglFont::word CglFont::SplitWord(CglFont::word& w, float wantedWidth, bool smart
 }
 
 
-void CglFont::AddEllipsis(std::list<line>& lines, std::list<word>& words, float maxWidth) const
+void CglFont::AddEllipsis(std::list<line>& lines, std::list<word>& words, float maxWidth)
 {
 	const float ellipsisAdvance = glyphs[0x85].advance;
 	const float spaceAdvance = glyphs[0x20].advance;
@@ -1162,7 +1214,7 @@ void CglFont::AddEllipsis(std::list<line>& lines, std::list<word>& words, float 
 }
 
 
-void CglFont::WrapTextConsole(std::list<word>& words, float maxWidth, float maxHeight) const
+void CglFont::WrapTextConsole(std::list<word>& words, float maxWidth, float maxHeight)
 {
 	if (words.empty() || (lineHeight<=0.0f))
 		return;
@@ -1276,13 +1328,13 @@ void CglFont::WrapTextConsole(std::list<word>& words, float maxWidth, float maxH
 }
 
 
-void CglFont::WrapTextKnuth(std::list<word>& words, float maxWidth, float maxHeight) const
+void CglFont::WrapTextKnuth(std::list<word>& words, float maxWidth, float maxHeight)
 {
 	// TODO FINISH ME!!! (Knuths algorithm would try to share deadspace between lines, with the smallest sum of (deadspace of line)^2)
 }
 
 
-void CglFont::SplitTextInWords(const std::string& text, std::list<word>* words, std::list<colorcode>* colorcodes) const
+void CglFont::SplitTextInWords(const std::string& text, std::list<word>* words, std::list<colorcode>* colorcodes)
 {
 	const unsigned int length = (unsigned int)text.length();
 	const float spaceAdvance = glyphs[0x20].advance;
@@ -1434,7 +1486,7 @@ void CglFont::RemergeColorCodes(std::list<word>* words, std::list<colorcode>& co
 }
 
 
-int CglFont::WrapInPlace(std::string& text, float _fontSize, const float maxWidth, const float maxHeight) const
+int CglFont::WrapInPlace(std::string& text, float _fontSize, const float maxWidth, const float maxHeight)
 {
 	// TODO make an option to insert '-' for word wrappings (and perhaps try to syllabificate)
 
@@ -1475,7 +1527,7 @@ int CglFont::WrapInPlace(std::string& text, float _fontSize, const float maxWidt
 }
 
 
-std::list<std::string> CglFont::Wrap(const std::string& text, float _fontSize, const float maxWidth, const float maxHeight) const
+std::list<std::string> CglFont::Wrap(const std::string& text, float _fontSize, const float maxWidth, const float maxHeight)
 {
 	// TODO make an option to insert '-' for word wrappings (and perhaps try to syllabificate)
 
@@ -1702,7 +1754,7 @@ void CglFont::RenderString(float x, float y, const float& scaleX, const float& s
 
 	int skippedLines;
 	bool endOfString, colorChanged;
-	const GlyphInfo* g = NULL;
+	GlyphInfo* g = NULL;
 	const unsigned char* c;
 	float4 newColor; newColor[3] = 1.0f;
 	unsigned int i = 0;
@@ -1714,6 +1766,10 @@ void CglFont::RenderString(float x, float y, const float& scaleX, const float& s
 			return;
 
 		c  = reinterpret_cast<const unsigned char*>(&str[i]);
+        if (*c > 127) {
+            LOG_L(L_ERROR, "R ");
+            //LOG_L(L_ERROR, "Char not ASCII: %d ", *c);
+        }
 		++i;
 
 		if (colorChanged) {
@@ -1755,7 +1811,7 @@ void CglFont::RenderStringShadow(float x, float y, const float& scaleX, const fl
 
 	int skippedLines;
 	bool endOfString, colorChanged;
-	const GlyphInfo* g = NULL;
+	GlyphInfo* g = NULL;
 	const unsigned char* c;
 	float4 newColor; newColor[3] = 1.0f;
 	unsigned int i = 0;
@@ -1767,6 +1823,10 @@ void CglFont::RenderStringShadow(float x, float y, const float& scaleX, const fl
 			return;
 
 		c  = reinterpret_cast<const unsigned char*>(&str[i]);
+        if (*c > 127) {
+            LOG_L(L_ERROR, " RS ");
+//            LOG_L(L_ERROR, "Char not ASCII: %d ", *c);
+        }
 		++i;
 
 		if (colorChanged) {
@@ -1817,19 +1877,19 @@ void CglFont::RenderStringOutlined(float x, float y, const float& scaleX, const 
 
 	int skippedLines;
 	bool endOfString, colorChanged;
-	const GlyphInfo* g = NULL;
-	const unsigned char* c;
+	GlyphInfo* g = NULL;
+	unsigned int c = 5;
 	float4 newColor; newColor[3] = 1.0f;
 	unsigned int i = 0;
+    std::string::const_iterator iter = str.begin();
 
 	do {
 		endOfString = SkipColorCodesAndNewLines(str, &i, &newColor, &colorChanged, &skippedLines, &baseTextColor);
 
-		if (endOfString)
+		if (endOfString || iter == str.end())
 			return;
 
-		c  = reinterpret_cast<const unsigned char*>(&str[i]);
-		++i;
+		c  = utf8::next(iter, str.end());
 
 		if (colorChanged) {
 			if (autoOutlineColor) {
@@ -1843,10 +1903,10 @@ void CglFont::RenderStringOutlined(float x, float y, const float& scaleX, const 
 			x  = startx;
 			y -= skippedLines * lineHeight_;
 		} else if (g) {
-			x += scaleX * g->kerning[*c];
+			x += scaleX * g->kerning[c];
 		}
 
-		g = &glyphs[*c];
+		g = &glyphs[c];
 
 		const float dx0 = x + scaleX * g->x0, dy0 = y + scaleY * g->y0;
 		const float dx1 = x + scaleX * g->x1, dy1 = y + scaleY * g->y1;
