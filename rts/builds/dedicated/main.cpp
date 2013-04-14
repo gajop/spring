@@ -104,14 +104,12 @@ void ParseCmdLine(int argc, char* argv[], std::string* script_txt)
 		dataDirLocater.SetIsolationModeDir(cmdline.GetString("isolation-dir"));
 	}
 
+	const std::string configSource = cmdline.IsSet("config") ? cmdline.GetString("config") : "";
 
-	std::string configSource = "";
-	if (cmdline.IsSet("config")) {
-		configSource = cmdline.GetString("config");
-	}
+	dataDirLocater.LocateDataDirs();
+	dataDirLocater.ChangeCwdToWriteDir();
 	ConfigHandler::Instantiate(configSource);
 	GlobalConfig::Instantiate();
-
 
 	if (cmdline.IsSet("list-config-vars")) {
 		ConfigVariable::OutputMetaDataMap();
@@ -146,6 +144,8 @@ int main(int argc, char* argv[])
 
 	ParseCmdLine(argc, argv, &scriptName);
 
+	FileSystemInitializer::Initialize();
+
 	// Initialize crash reporting
 	CrashHandler::Install();
 
@@ -153,7 +153,6 @@ int main(int argc, char* argv[])
 	LOG("report any errors to Mantis or the forums.");
 	LOG("loading script from file: %s", scriptName.c_str());
 
-	FileSystemInitializer::Initialize();
 	logOutput.Initialize();
 
 	CGameServer* server = NULL;

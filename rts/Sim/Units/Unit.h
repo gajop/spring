@@ -146,9 +146,10 @@ public:
 
 	void CalculateTerrainType();
 	void UpdateTerrainType();
+	void UpdatePhysicalState();
 
 	void SetDirVectors(const CMatrix44f&);
-	void UpdateDirVectors(bool, bool = false);
+	void UpdateDirVectors(bool useGroundNormal);
 
 	bool IsNeutral() const { return neutral; }
 	bool IsCloaked() const { return isCloaked; }
@@ -428,12 +429,9 @@ public:
 	bool crashing;
 	/// prevent damage from hitting an already dead unit (causing multi wreck etc)
 	bool isDead;
-	/// for units being dropped from transports (parachute drops)
-	bool	falling;
-	float	fallSpeed;
 
-	bool inAir;
-	bool inWater;
+	/// for units being dropped from transports (parachute drops)
+	float fallSpeed;
 
 	/**
 	 * 0 = no flanking bonus

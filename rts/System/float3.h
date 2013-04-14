@@ -31,12 +31,12 @@ public:
 	void operator delete(void* p, size_t size) { mempool.Free(p, size); }
 */
 
-#ifdef _MSC_VER
-	static const float CMP_EPS;
-	static const float NORMALIZE_EPS;
-#else
+#ifdef __GNUC__ // optimization for gnu compilers, so it can be inlined
 	static const float CMP_EPS = 1e-4f;
 	static const float NORMALIZE_EPS = 1e-12f;
+#else
+	static const float CMP_EPS;
+	static const float NORMALIZE_EPS;
 #endif
 
 

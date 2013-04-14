@@ -1,7 +1,6 @@
 /* This file is part of the Spring engine (GPL v2 or later), see LICENSE.html */
 
-
-#include <fstream>
+#include <iostream>
 #include <stdexcept>
 #include <cassert>
 #include <boost/cstdint.hpp>
@@ -27,11 +26,16 @@
 
 #include "System/creg/STL_Map.h"
 #include "System/Config/ConfigHandler.h"
+#include "System/FileSystem/FileSystemInitializer.h"
+#include "System/Log/DefaultFilter.h"
 #include "System/Log/ILog.h"
 #include "System/Exceptions.h"
 #include "System/creg/VarTypes.h"
+#include "System/FileSystem/ArchiveScanner.h"
 #include "System/FileSystem/FileHandler.h"
+#include "System/FileSystem/VFSHandler.h"
 #include "System/Util.h"
+
 
 CR_BIND_DERIVED_INTERFACE(CExpGenSpawnable, CWorldObject);
 CR_REG_METADATA(CExpGenSpawnable, );
@@ -803,12 +807,22 @@ unsigned int CCustomExplosionGenerator::Load(CExplosionGeneratorHandler* handler
 
 			const string className = spawnTable.GetString("class", spawnName);
 
-			psi.projectileClass = handler->projectileClasses.GetClass(className);
-			psi.flags = GetFlagsFromTable(spawnTable);
-			psi.count = spawnTable.GetInt("count", 1);
+			try {
+				psi.projectileClass = handler->projectileClasses.GetClass(className);
+				psi.flags = GetFlagsFromTable(spawnTable);
+				psi.count = spawnTable.GetInt("count", 1);
+			} catch(...) {
+				LOG_L(L_WARNING,
+					"[CCEG::Load] %s: Unknown class \"%s\"",
+					tag.c_str(), className.c_str());
+				continue;
+			}
 
 			if (psi.projectileClass->binder->flags & creg::CF_Synced) {
-				psi.flags |= SPW_SYNCED;
+				LOG_L(L_WARNING,
+					"[CCEG::Load] %s: Tried to access synced class \"%s\"",
+					tag.c_str(), className.c_str());
+				continue;
 			}
 
 			string code;
@@ -820,6 +834,10 @@ unsigned int CCustomExplosionGenerator::Load(CExplosionGeneratorHandler* handler
 				creg::Class::Member* m = psi.projectileClass->FindMember(propIt->first.c_str());
 				if (m && (m->flags & creg::CM_Config)) {
 					ParseExplosionCode(&psi, m->offset, m->type, propIt->second, code);
+				} else {
+					LOG_L(L_WARNING,
+						"[CCEG::Load] %s: Unknown tag %s::%s",
+						tag.c_str(), className.c_str(), propIt->first.c_str());
 				}
 			}
 
@@ -981,32 +999,55 @@ bool CCustomExplosionGenerator::Explosion(
 }
 
 
-void CCustomExplosionGenerator::OutputProjectileClassInfo()
+bool CCustomExplosionGenerator::OutputProjectileClassInfo()
 {
+	LOG_DISABLE();
+		// we need to load basecontent for class aliases
+		FileSystemInitializer::Initialize();
+		vfsHandler->AddArchiveWithDeps(archiveScanner->ArchiveFromName("Spring content v1"), false);
+	LOG_ENABLE();
+
+	creg::System::InitializeClasses();
 	const vector<creg::Class*>& classes = creg::System::GetClasses();
-	std::ofstream fs("projectiles.txt");
 	CExplosionGeneratorHandler egh;
 
-	if (fs.bad() || !fs.is_open()) {
-		return;
-	}
+	bool first = true;
+	std::cout << "{" << std::endl;
 
 	for (vector<creg::Class*>::const_iterator ci = classes.begin(); ci != classes.end(); ++ci) {
-		if (!(*ci)->IsSubclassOf (CExpGenSpawnable::StaticClass()) || (*ci) == CExpGenSpawnable::StaticClass()) {
+		creg::Class* c = *ci;
+
+		if (!c->IsSubclassOf(CExpGenSpawnable::StaticClass()) || c == CExpGenSpawnable::StaticClass()) {
 			continue;
 		}
 
-		creg::Class *klass = *ci;
-		fs << "Class: " << klass->name << ".  Scriptname: " << egh.projectileClasses.FindAlias(klass->name) << std::endl;
-		for (; klass; klass = klass->base) {
-			for (unsigned int a = 0; a < klass->members.size(); a++) {
-				if (klass->members[a]->flags & creg::CM_Config) {
-					fs << "\t" << klass->members[a]->name << ": " << klass->members[a]->type->GetName() << "\n";
+		if (c->binder->flags & creg::CF_Synced) {
+			continue;
+		}
+
+		if (first) {
+			first = false;
+		} else {
+			std::cout << "," << std::endl;
+		}
+
+		std::cout << "  \"" << c->name << "\": {" << std::endl;
+		std::cout << "    \"alias\": \"" << egh.projectileClasses.FindAlias(c->name) << "\"";
+		for (; c; c = c->base) {
+			for (unsigned int a = 0; a < c->members.size(); a++) {
+				if (c->members[a]->flags & creg::CM_Config) {
+					std::cout << "," << std::endl;
+					std::cout << "    \"" << c->members[a]->name << "\": \"" << c->members[a]->type->GetName() << "\"";
 				}
 			}
 		}
-		fs << "\n\n";
+
+		std::cout << std::endl << "  }";
 	}
+	std::cout << std::endl << "}" << std::endl;
+
+	FileSystemInitializer::Cleanup();
+	return true;
 }
 
 void CCustomExplosionGenerator::Unload(CExplosionGeneratorHandler* handler) {

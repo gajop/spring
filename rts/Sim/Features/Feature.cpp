@@ -31,7 +31,6 @@ CR_REG_METADATA(CFeature, (
 	CR_MEMBER(defID),
 	CR_MEMBER(isRepairingBeforeResurrect),
 	CR_MEMBER(isAtFinalHeight),
-	CR_MEMBER(isMoving),
 	CR_MEMBER(inUpdateQue),
 	CR_MEMBER(resurrectProgress),
 	CR_MEMBER(reclaimLeft),
@@ -55,7 +54,6 @@ CFeature::CFeature() : CSolidObject(),
 	defID(-1),
 	isRepairingBeforeResurrect(false),
 	isAtFinalHeight(false),
-	isMoving(false),
 	inUpdateQue(false),
 	resurrectProgress(0.0f),
 	reclaimLeft(1.0f),
@@ -74,8 +72,6 @@ CFeature::CFeature() : CSolidObject(),
 {
 	crushable = true;
 	immobile = true;
-
-	physicalState = OnGround;
 }
 
 CFeature::~CFeature()
@@ -525,9 +521,9 @@ bool CFeature::UpdatePosition()
 	}
 
 	residualImpulse *= impulseDecayRate;
-
-	isUnderWater = ((pos.y + height) < 0.0f);
 	isMoving = ((speed != ZeroVector) || (std::fabs(pos.y - finalHeight) >= 0.01f));
+
+	UpdatePhysicalState();
 
 	return isMoving;
 }

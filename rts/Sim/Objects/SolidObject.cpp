@@ -39,7 +39,6 @@ CR_REG_METADATA(CSolidObject,
 	CR_MEMBER(heading),
 	CR_ENUM_MEMBER(physicalState),
 	CR_MEMBER(isMoving),
-	CR_MEMBER(isUnderWater),
 	CR_MEMBER(isMarkedOnBlockingMap),
 	CR_MEMBER(groundBlockPos),
 	CR_MEMBER(speed),
@@ -83,12 +82,14 @@ CSolidObject::CSolidObject():
 
 	xsize(1),
 	zsize(1),
-	footprint(1,1),
+	footprint(1, 1),
+
 	heading(0),
-	physicalState(OnGround),
+	physicalState(STATE_BIT_ONGROUND),
+
 	isMoving(false),
-	isUnderWater(false),
 	isMarkedOnBlockingMap(false),
+
 	speed(ZeroVector),
 	residualImpulse(ZeroVector),
 	team(0),
@@ -117,6 +118,25 @@ CSolidObject::~CSolidObject() {
 	collisionVolume = NULL;
 }
 
+void CSolidObject::UpdatePhysicalState() {
+	const float mh = /*model->*/height;
+	const float gh = ground->GetHeightReal(pos.x, pos.z);
+
+	unsigned int ps = physicalState;
+
+	ps &= (~CSolidObject::STATE_BIT_ONGROUND);
+	ps &= (~CSolidObject::STATE_BIT_INWATER);
+	ps &= (~CSolidObject::STATE_BIT_UNDERWATER);
+	ps &= (~CSolidObject::STATE_BIT_INAIR);
+
+	ps |= (CSolidObject::STATE_BIT_ONGROUND   * ((pos.y -                 gh) <= 1.0f));
+	ps |= (CSolidObject::STATE_BIT_INWATER    * ( pos.y                       <= 0.0f));
+	ps |= (CSolidObject::STATE_BIT_UNDERWATER * ((pos.y +                 mh) <  0.0f));
+	ps |= (CSolidObject::STATE_BIT_INAIR      * ((pos.y - std::max(gh, 0.0f)) >  1.0f));
+
+	physicalState = static_cast<PhysicalState>(ps);
+}
+
 
 
 void CSolidObject::UnBlock() {
@@ -128,14 +148,13 @@ void CSolidObject::UnBlock() {
 }
 
 void CSolidObject::Block() {
-	if (physicalState == Flying) {
-		//FIXME why does airmovetypes really rely on Block() to UNblock!
+	if (IsFlying()) {
+		//FIXME why do airmovetypes really rely on Block() to UNblock!
 		UnBlock();
 		return;
 	}
 
 	if (!blocking) {
-		//FIXME just why???
 		UnBlock();
 		return;
 	}
@@ -162,7 +181,7 @@ YardMapStatus CSolidObject::GetGroundBlockingMaskAtPos(float3 gpos) const
 	float3 frontv;
 	float3 rightv;
 
-	if (true) {
+	#if 1
 		// use continuous floating-point space
 		gpos   -= pos;
 		gpos.x += SQUARE_SIZE / 2; //??? needed to move to SQUARE-center? (possibly current input is wrong)
@@ -170,7 +189,7 @@ YardMapStatus CSolidObject::GetGroundBlockingMaskAtPos(float3 gpos) const
 
 		frontv =  frontdir;
 		rightv = -rightdir; //??? spring's unit-rightdir is in real the LEFT vector :x
-	} else {
+	#else
 		// use old fixed space (4 facing dirs & ints for unit positions)
 
 		// form the rotated axis vectors
@@ -190,7 +209,7 @@ YardMapStatus CSolidObject::GetGroundBlockingMaskAtPos(float3 gpos) const
 		// need to revert some of the transformations of CSolidObject::GetMapPos()
 		gpos.x += SQUARE_SIZE / 2 - (this->xsize >> 1) * SQUARE_SIZE; 
 		gpos.z += SQUARE_SIZE / 2 - (this->zsize >> 1) * SQUARE_SIZE;
-	}
+	#endif
 
 	// transform worldspace pos to unit rotation dependent `centered blockmap space` [-hxsize .. +hxsize] x [-hzsize .. +hzsize]
 	float by = frontv.dot(gpos) / SQUARE_SIZE;
@@ -222,6 +241,38 @@ int2 CSolidObject::GetMapPos(const float3& position) const
 	mp.y = Clamp(mp.y, 0, gs->mapy - zsize);
 
 	return mp;
+}
+
+float3 CSolidObject::GetWantedUpDir(bool useGroundNormal) const {
+	// NOTE:
+	//   for aircraft IsOnGround is already factored into useGroundNormal
+	//   for ground-units the situation is more complicated because 1) it
+	//   depends on the 'upright' tag and 2) ships and hovercraft are not
+	//   "on the ground" all the time ('ground' is the ocean floor, *not*
+	//   the water surface) and neither are tanks / bots due to impulses,
+	//   gravity, ...
+	//
+	const float3 gn = ground->GetSmoothNormal(pos.x, pos.z) * (    useGroundNormal);
+	const float3 wn =                             UpVector  * (1 - useGroundNormal);
+
+	if (moveDef == NULL)
+		return (gn + updir * (1 - useGroundNormal));
+
+	// not an aircraft if we get here, prevent pitch changes
+	// if(f) the object is neither on the ground nor in water
+	// for whatever reason (GMT also prevents heading changes)
+	if (!IsInAir()) {
+		switch (moveDef->moveFamily) {
+			case MoveDef::Tank:  { return ((gn + wn) * IsOnGround() + updir * (1 - IsOnGround())); } break;
+			case MoveDef::KBot:  { return ((gn + wn) * IsOnGround() + updir * (1 - IsOnGround())); } break;
+
+			case MoveDef::Hover: { return ((UpVector * IsInWater()) + (gn + wn) * (1 - IsInWater())); } break;
+			case MoveDef::Ship:  { return ((UpVector * IsInWater()) + (gn + wn) * (1 - IsInWater())); } break;
+		}
+	}
+
+	// prefer to keep local up-vector as long as possible
+	return updir;
 }
 
 

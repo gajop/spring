@@ -365,7 +365,7 @@ elseif (CMAKE_COMPILER_IS_GNUCXX)
 elseif (MSVC)
 	# nothing to be done here
 else   (MSVC)
-	Message(FATAL_ERROR "unknown compiler")
+	Message(WARNING "unknown compiler")
 endif ($ENV{CXX} MATCHES "icpc")
 
 add_definitions(-DSTREFLOP_SSE) # would break AI compiling, but is undefined in ./AI/CMakeLists.txt
@@ -373,7 +373,9 @@ add_definitions(-DSTREFLOP_SSE) # would break AI compiling, but is undefined in 
 if    (MSVC)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LARGEADDRESSAWARE")
 else  (MSVC)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsingle-precision-constant -frounding-math")
+	if (CMAKE_COMPILER_IS_GNUCXX)
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsingle-precision-constant -frounding-math")
+	endif(CMAKE_COMPILER_IS_GNUCXX)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${IEEE_FP_FLAG} -pipe -fno-strict-aliasing ${VISIBILITY_HIDDEN} ${VISIBILITY_INLINES_HIDDEN}")
 	if (UNIX)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
