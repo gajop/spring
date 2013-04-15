@@ -48,7 +48,9 @@ LOG_REGISTER_SECTION_GLOBAL(LOG_SECTION_FONT)
 
 CglFont* font;
 CglFont* smallFont;
+#ifndef   HEADLESS
 FT_Face face;
+#endif
 
 #define GLYPH_MARGIN 2 //! margin between glyphs in texture-atlas
 
@@ -296,6 +298,7 @@ void CFontTextureRenderer::GetGlyph(unsigned int index, CglFont::GlyphInfo* g)
 CFontTextureRenderer::GlyphInfo CFontTextureRenderer::AddGlyph(unsigned unicode)
 {
 	GlyphInfo g;
+#ifndef   HEADLESS
     FT_Error error = FT_Load_Char(face, unicode, FT_LOAD_RENDER);
     if (error) {
         return g;
@@ -328,6 +331,7 @@ CFontTextureRenderer::GlyphInfo CFontTextureRenderer::AddGlyph(unsigned unicode)
 	if (ysize>maxGlyphHeight) maxGlyphHeight = ysize;
 
 	sortByHeight.push_back(int2(unicode,ysize));
+#endif
     return g;
 }
 
@@ -431,6 +435,7 @@ GLuint CFontTextureRenderer::CreateTexture()
 
 CglFont::GlyphInfo CglFont::generateGlyph(int unicode) {
     CglFont::GlyphInfo g;
+#ifndef   HEADLESS
 
     //! translate WinLatin (codepage-1252) to Unicode (used by freetype)
 //    int unicode = WinLatinToUnicode(unicode);
@@ -455,7 +460,7 @@ CglFont::GlyphInfo CglFont::generateGlyph(int unicode) {
     g.y0 = ybearing - fontDescender;
     g.x1 = (xbearing + slot->metrics.width * normScale);
     g.y1 = g.y0 - g.height;
-
+#endif
     return g;
 }
 
