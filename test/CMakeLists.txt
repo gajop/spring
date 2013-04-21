@@ -21,6 +21,11 @@ Else  (NOT Boost_FOUND)
 	EndIf	(NOT (WIN32 OR Boost_USE_STATIC_LIBS))
 	add_definitions(-DSYNCCHECK -DUNIT_TEST)
 
+	Set(Boost_CHRONO_LIBRARY_WITH_RT ${Boost_CHRONO_LIBRARY})
+	IF    (UNIX AND NOT MINGW)
+		LIST(APPEND Boost_CHRONO_LIBRARY_WITH_RT ${REALTIME_LIBRARY})
+	ENDIF (UNIX AND NOT MINGW)
+
 	Set(test_Log_sources
 			"${ENGINE_SOURCE_DIR}/System/SafeCStrings.c"
 			"${ENGINE_SOURCE_DIR}/System/Log/Backend.cpp"
@@ -63,7 +68,7 @@ Else  (NOT Boost_FOUND)
 	TARGET_LINK_LIBRARIES(test_UDPListener
 			${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
 			${Boost_SYSTEM_LIBRARY}
-			${SDL_LIBRARY}
+			${Boost_CHRONO_LIBRARY_WITH_RT}
 			${WS2_32_LIBRARY}
 			7zip
 		)
@@ -163,12 +168,44 @@ Else  (NOT Boost_FOUND)
 	TARGET_LINK_LIBRARIES(test_Matrix44f
 			${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
 			${Boost_SYSTEM_LIBRARY}
-			${SDL_LIBRARY}
+			${Boost_CHRONO_LIBRARY_WITH_RT}
 		)
 
 	set_target_properties(test_Matrix44f PROPERTIES COMPILE_FLAGS "-DNOT_USING_CREG -DNOT_USING_STREFLOP -DBUILDING_AI")
 	ADD_TEST(NAME testMatrix44f COMMAND test_Matrix44f)
 	Add_Dependencies(tests test_Matrix44f)
+
+################################################################################
+### SpringTime
+
+	Set(test_SpringTime_src
+			"${CMAKE_CURRENT_SOURCE_DIR}/engine/System/Misc/testSpringTime.cpp"
+			"${ENGINE_SOURCE_DIR}/System/Misc/SpringTime.cpp"
+			"${ENGINE_SOURCE_DIR}/System/TimeProfiler.cpp"
+			"${ENGINE_SOURCE_DIR}/System/UnsyncedRNG.cpp"
+			${test_Log_sources}
+		)
+
+	LIST(APPEND test_SpringTime_libs
+			${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+			${Boost_SYSTEM_LIBRARY}
+			${Boost_CHRONO_LIBRARY_WITH_RT}
+			${Boost_THREAD_LIBRARY}
+			${SDL_LIBRARY}
+		)
+	Set(test_SpringTime_flags "-DNOT_USING_CREG -DNOT_USING_STREFLOP -DBUILDING_AI")
+
+	if (Boost_TIMER_FOUND)
+		LIST(APPEND test_SpringTime_libs ${Boost_TIMER_LIBRARY})
+		Set(test_SpringTime_flags "${test_SpringTime_flags} -DBoost_TIMER_FOUND")
+	endif (Boost_TIMER_FOUND)
+
+	ADD_EXECUTABLE(test_SpringTime ${test_SpringTime_src})
+	TARGET_LINK_LIBRARIES(test_SpringTime ${test_SpringTime_libs})
+
+	set_target_properties(test_SpringTime PROPERTIES COMPILE_FLAGS "${test_SpringTime_flags}")
+	ADD_TEST(NAME testSpringTime COMMAND test_SpringTime)
+	Add_Dependencies(tests test_SpringTime)
 
 ################################################################################
 ### BitwiseEnum

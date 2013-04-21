@@ -55,14 +55,9 @@ if    (USE_LIBSQUISH)
 endif (USE_LIBSQUISH)
 
 LIST(APPEND engineLibraries ${sound-impl})
-
+LIST(APPEND engineLibraries ${Boost_THREAD_LIBRARY})
 LIST(APPEND engineLibraries ${engineCommonLibraries})
 
-LIST(APPEND engineLibraries ${Boost_THREAD_LIBRARY})
-if (WIN32 AND Boost_CHRONO_FOUND)
-	# in newer boost versions the thread library depends on it
-	LIST(APPEND engineLibraries ${Boost_CHRONO_LIBRARY})
-endif (WIN32 AND Boost_CHRONO_FOUND)
 
 ### Assemble external incude dirs
 LIST(APPEND engineIncludes ${OPENAL_INCLUDE_DIR})
@@ -90,41 +85,13 @@ if (USE_GML_DEBUG)
 	ADD_DEFINITIONS(-DUSE_GML_DEBUG)
 endif (USE_GML_DEBUG)
 
-### Add icon and manifest to exe using windres
-IF    (WIN32)
-	IF   (MINGW)
-		SET(ENGINE_ICON_DIR "${ENGINE_SRC_ROOT_DIR}")
-		SET(ENGINE_ICON_RES "${ENGINE_SRC_ROOT_DIR}/icon.rc")
-		SET(ENGINE_ICON_OBJ "${CMAKE_CURRENT_BINARY_DIR}/icon.o")
-		CreateResourceCompileCommand(ENGINE_ICON "${ENGINE_ICON_DIR}" "${ENGINE_ICON_RES}" "${ENGINE_ICON_OBJ}")
-	ENDIF(MINGW)
-ELSE  (WIN32)
-	SET(ENGINE_ICON "")
-ENDIF (WIN32)
-
 ### Build the executable
-ADD_EXECUTABLE(engine-default ${EXE_FLAGS} ${engineSources} ${ENGINE_ICON} ${engineHeaders})
-TARGET_LINK_LIBRARIES(engine-default gml ${engineLibraries})
-SET_TARGET_PROPERTIES(engine-default PROPERTIES OUTPUT_NAME "spring")
+ADD_EXECUTABLE(engine-multithreaded ${EXE_FLAGS} ${engineSources} ${ENGINE_ICON} ${engineHeaders})
+TARGET_LINK_LIBRARIES(engine-multithreaded gml ${engineLibraries})
 
 
 ### Install the executable
-INSTALL(TARGETS engine-default DESTINATION ${BINDIR})
+INSTALL(TARGETS engine-multithreaded DESTINATION ${BINDIR})
 
-#IF    (MINGW)
-#	SET_TARGET_PROPERTIES(engine-default PROPERTIES LINK_FLAGS "-Wl,--output-def,spring.def")
-#	install (FILES ${CMAKE_CURRENT_BINARY_DIR}/spring.def DESTINATION ${BINDIR})
-#ENDIF (MINGW)
+CreateEngineBuildAndInstallTarget(multithreaded)
 
-# Only build & install spring (default) executable & dependencies
-# use cases:
-# * make spring-default
-# * make install-spring-default
-CreateEngineBuildAndInstallTarget(default)
-
-# Create shortcuts
-# * make spring
-# * make install-spring
-add_dependencies(spring spring-default) # This also works for custom targets
-
-add_dependencies(install-spring install-spring-default) # This also works for custom targets

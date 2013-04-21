@@ -10,8 +10,6 @@
 
 #ifndef _CONSOLE
 
-#include <SDL_timer.h>
-
 #include "Game/GameHelper.h"
 #include "Game/GlobalUnsynced.h"
 #include "Map/Ground.h"
@@ -320,7 +318,7 @@ void CUnitScript::RemoveAnim(AnimType type, const std::list<AnimInfo*>::iterator
 	if (animInfoIt != anims[type].end()) {
 		AnimInfo* ai = *animInfoIt;
 		anims[type].erase(animInfoIt);
- 
+
 		// If this was the last animation, remove from currently animating list
 		// FIXME: this could be done in a cleaner way
 		if (!HaveAnimations()) {
@@ -1000,7 +998,7 @@ int CUnitScript::GetUnitVal(int val, int p1, int p2, int p3, int p4)
 	case ON_ROAD:
 		return 0;
 	case IN_WATER:
-		return (unit->pos.y < 0.0f) ? 1 : 0;
+		return (unit->IsInWater());
 	case MAX_ID:
 		return unitHandler->MaxUnits()-1;
 	case MY_ID:
@@ -1663,47 +1661,6 @@ void CUnitScript::SetUnitVal(int val, int param)
 	}
 #endif
 }
-
-
-/******************************************************************************/
-/******************************************************************************/
-
-#ifndef _CONSOLE
-
-void CUnitScript::BenchmarkScript(CUnitScript* script)
-{
-	const int duration = 10000; // millisecs
-
-	const unsigned start = SDL_GetTicks();
-	unsigned end = start;
-	int count = 0;
-
-	while ((end - start) < duration) {
-		for (int i = 0; i < 10000; ++i) {
-			script->QueryWeapon(0);
-		}
-		++count;
-		end = SDL_GetTicks();
-	}
-
-	LOG("%d0000 calls in %u ms -> %.0f calls/second",
-			count, end - start, float(count) * (10000 / (duration / 1000)));
-}
-
-
-void CUnitScript::BenchmarkScript(const std::string& unitname)
-{
-	std::list<CUnit*>::iterator ui = unitHandler->activeUnits.begin();
-	for (; ui != unitHandler->activeUnits.end(); ++ui) {
-		CUnit* unit = *ui;
-		if (unit->unitDef->name == unitname) {
-			BenchmarkScript(unit->script);
-			return;
-		}
-	}
-}
-
-#endif
 
 /******************************************************************************/
 /******************************************************************************/

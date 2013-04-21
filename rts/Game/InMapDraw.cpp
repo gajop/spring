@@ -57,7 +57,7 @@ public:
 			LOG("%s added point: %s", sender->name.c_str(), label->c_str());
 			eventHandler.LastMessagePosition(*pos0);
 			Channels::UserInterface.PlaySample(blippSound, *pos0);
-			minimap->AddNotification(*pos0, float3(1.0f, 1.0f, 1.0f), 1.0f);
+			minimap->AddNotification(*pos0, OnesVector, 1.0f);
 		}
 
 		return false;
@@ -73,7 +73,7 @@ CInMapDraw::CInMapDraw()
 	, wantLabel(false)
 	, lastLeftClickTime(0.0f)
 	, lastDrawTime(0.0f)
-	, lastPos(float3(1.0f, 1.0f, 1.0f))
+	, lastPos(OnesVector)
 	, allowSpecMapDrawing(true)
 	, allowLuaMapDrawing(true)
 	, notificationPeeper(NULL)
@@ -146,11 +146,11 @@ void CInMapDraw::MouseMove(int x, int y, int dx, int dy, int button)
 
 float3 CInMapDraw::GetMouseMapPos() // TODO move to some more global place?
 {
-	const float dist = ground->LineGroundCol(camera->pos, camera->pos + (mouse->dir * globalRendering->viewRange * 1.4f), false);
+	const float dist = ground->LineGroundCol(camera->GetPos(), camera->GetPos() + (mouse->dir * globalRendering->viewRange * 1.4f), false);
 	if (dist < 0) {
 		return float3(-1.0f, 1.0f, -1.0f);
 	}
-	float3 pos = camera->pos + (mouse->dir * dist);
+	float3 pos = camera->GetPos() + (mouse->dir * dist);
 	pos.ClampInBounds();
 	return pos;
 }

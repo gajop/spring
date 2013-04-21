@@ -1,7 +1,7 @@
 /* This file is part of the Spring engine (GPL v2 or later), see LICENSE.html */
 
 #include <cstdlib>
-
+#include <stdarg.h>
 
 #include "CameraHandler.h"
 
@@ -128,27 +128,28 @@ void CCameraHandler::UpdateCam()
 {
 	GML_RECMUTEX_LOCK(cam); // UpdateCam
 
-	//??? a lot CameraControllers depend on the calling every frame the 1st part of the if-clause 
+	//??? a lot CameraControllers depend on the calling every frame the 1st part of the if-clause
 	//if (cameraTimeEnd < 0.0f) {
 	//	return;
 	//}
-	
+
 	const float  wantedCamFOV = currCamCtrl->GetFOV();
 	const float3 wantedCamPos = currCamCtrl->GetPos();
 	const float3 wantedCamDir = currCamCtrl->GetDir();
 
-	const float curTime = spring_tomsecs(spring_gettime()) / 1000.0f;
+	const float curTime = spring_gettime().toSecsf();
 	if (curTime >= cameraTimeEnd) {
-		camera->pos     = wantedCamPos;
+		camera->SetPos(wantedCamPos);
 		camera->forward = wantedCamDir;
 		camera->SetFov(wantedCamFOV);
 		//cameraTimeEnd   = -1.0f;
 	}
 	else {
+		assert((cameraTimeEnd - cameraTimeStart) > 0.0f);
 		const float timeRatio = (cameraTimeEnd - curTime) / (cameraTimeEnd - cameraTimeStart);
 		const float tweenFact = 1.0f - (float)math::pow(timeRatio, cameraTimeExponent);
 
-		camera->pos     = mix(startCam.pos, wantedCamPos, tweenFact);
+		camera->SetPos(   mix(startCam.pos, wantedCamPos, tweenFact));
 		camera->forward = mix(startCam.dir, wantedCamDir, tweenFact);
 		camera->SetFov(   mix(startCam.fov, wantedCamFOV, tweenFact));
 		camera->forward.Normalize();
@@ -163,9 +164,9 @@ void CCameraHandler::CameraTransition(float time)
 	UpdateCam(); // this prevents camera stutter when multithreading
 	time = std::max(time, 0.0f) * cameraTimeFactor;
 
-	cameraTimeStart = spring_tomsecs(spring_gettime()) / 1000.0f;
+	cameraTimeStart = spring_gettime().toSecsf();
 	cameraTimeEnd   = cameraTimeStart + time;
-	startCam.pos = camera->pos;
+	startCam.pos = camera->GetPos();
 	startCam.dir = camera->forward;
 	startCam.fov = camera->GetFov();
 }

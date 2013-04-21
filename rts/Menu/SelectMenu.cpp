@@ -3,7 +3,6 @@
 #include "SelectMenu.h"
 
 #include <SDL_keysym.h>
-#include <SDL_timer.h>
 #include <boost/bind.hpp>
 #include <sstream>
 #include <stack>
@@ -181,7 +180,7 @@ SelectMenu::~SelectMenu()
 
 bool SelectMenu::Draw()
 {
-	SDL_Delay(10); // milliseconds
+	spring_msecs(10).sleep();
 	ClearScreen();
 	agui::gui->Draw();
 
@@ -205,6 +204,10 @@ void SelectMenu::Single()
 	}
 	else if (!once) // in case of double-click
 	{
+
+		if (selw->userScript == SelectionWidget::SandboxAI) {
+			selw->userScript.clear();
+		}
 		once = true;
 		mySettings->isHost = true;
 		pregame = new CPreGame(mySettings);

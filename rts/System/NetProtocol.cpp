@@ -2,7 +2,6 @@
 
 #include "System/Net/UDPConnection.h"
 
-#include <SDL_timer.h>
 #include <boost/scoped_ptr.hpp>
 #include <boost/shared_ptr.hpp>
 
@@ -17,6 +16,7 @@
 #include "Sim/Misc/GlobalConstants.h"
 #include "System/Net/UnpackPacket.h"
 #include "System/LoadSave/DemoRecorder.h"
+#include "System/Platform/Threading.h"
 #include "System/Config/ConfigHandler.h"
 #include "System/GlobalConfig.h"
 #include "System/Log/ILog.h"
@@ -147,7 +147,7 @@ void CNetProtocol::UpdateLoop()
 	loading = true;
 	while (loading) {
 		Update();
-		SDL_Delay(400);
+		spring_msecs(400).sleep();
 	}
 }
 

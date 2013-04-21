@@ -57,7 +57,6 @@
 #include <cctype>
 #include <SDL_keysym.h>
 #include <SDL_mouse.h>
-#include <SDL_timer.h>
 
 CONFIG(bool, LuaSocketEnabled)
 	.defaultValue(true)
@@ -407,7 +406,7 @@ void CLuaUI::ShockFront(float power, const float3& pos, float areaOfEffect, floa
 #if defined(USE_GML) && GML_ENABLE_SIM
 	float shockFrontDistAdj = (GML::Enabled() && distadj) ? *distadj : this->shockFrontDistAdj;
 #endif
-	float3 gap = (camera->pos - pos);
+	float3 gap = (camera->GetPos() - pos);
 	float dist = gap.Length() + shockFrontDistAdj;
 
 	power = power / (dist * dist);

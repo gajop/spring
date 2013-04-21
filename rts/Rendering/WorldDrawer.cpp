@@ -153,8 +153,6 @@ void CWorldDrawer::Draw()
 	glEnable(GL_BLEND);
 	glDepthFunc(GL_LEQUAL);
 
-	const bool noAdvShading = shadowHandler->shadowsLoaded;
-
 	static const double plane_below[4] = {0.0f, -1.0f, 0.0f, 0.0f};
 	static const double plane_above[4] = {0.0f,  1.0f, 0.0f, 0.0f};
 
@@ -163,8 +161,8 @@ void CWorldDrawer::Draw()
 		glEnable(GL_CLIP_PLANE3);
 
 		//! draw cloaked objects below water surface
-		unitDrawer->DrawCloakedUnits(noAdvShading);
-		featureDrawer->DrawFadeFeatures(noAdvShading);
+		unitDrawer->DrawCloakedUnits(shadowHandler->shadowsLoaded);
+		featureDrawer->DrawFadeFeatures(shadowHandler->shadowsLoaded);
 
 		glDisable(GL_CLIP_PLANE3);
 	}
@@ -187,8 +185,8 @@ void CWorldDrawer::Draw()
 		glEnable(GL_CLIP_PLANE3);
 
 		//! draw cloaked objects above water surface
-		unitDrawer->DrawCloakedUnits(noAdvShading);
-		featureDrawer->DrawFadeFeatures(noAdvShading);
+		unitDrawer->DrawCloakedUnits(shadowHandler->shadowsLoaded);
+		featureDrawer->DrawFadeFeatures(shadowHandler->shadowsLoaded);
 
 		glDisable(GL_CLIP_PLANE3);
 	}
@@ -223,9 +221,9 @@ void CWorldDrawer::Draw()
 
 
 	//! underwater overlay
-	if (camera->pos.y < 0.0f) {
+	if (camera->GetPos().y < 0.0f) {
 		glEnableClientState(GL_VERTEX_ARRAY);
-		const float3& cpos = camera->pos;
+		const float3& cpos = camera->GetPos();
 		const float vr = globalRendering->viewRange * 0.5f;
 		glDepthMask(GL_FALSE);
 		glDisable(GL_TEXTURE_2D);
@@ -274,7 +272,7 @@ void CWorldDrawer::Draw()
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	// underwater overlay, part 2
-	if (camera->pos.y < 0.0f) {
+	if (camera->GetPos().y < 0.0f) {
 		glEnableClientState(GL_VERTEX_ARRAY);
 		glDisable(GL_TEXTURE_2D);
 		glColor4f(0.0f, 0.2f, 0.8f, 0.333f);

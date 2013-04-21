@@ -22,6 +22,24 @@ using std::pair;
 using std::string;
 using std::vector;
 
+static inline LocalModelPiece* ParseLocalModelPiece(lua_State* L, CUnitScript* script, const char* caller)
+{
+	const int piece = luaL_checkint(L, 1) - 1;
+
+	if (!script->PieceExists(piece)) {
+		luaL_error(L, "%s(): Invalid piecenumber", caller);
+	}
+
+	return (script->GetScriptLocalModelPiece(piece));
+}
+
+static inline int ToLua(lua_State* L, const float3& v)
+{
+	lua_pushnumber(L, v.x);
+	lua_pushnumber(L, v.y);
+	lua_pushnumber(L, v.z);
+	return 3;
+}
 
 /*
 
@@ -1314,6 +1332,19 @@ int CLuaUnitScript::Turn(lua_State* L)
 	} else {
 		activeScript->Turn(piece, axis, speed, dest);
 	}
+
+	if (lua_isboolean(L, 5) && lua_toboolean(L, 5)) {
+		// CUnit* unit = activeScript->GetUnit();
+		// LocalModel* model = unit->localModel;
+		LocalModelPiece* piece = ParseLocalModelPiece(L, activeScript, __FUNCTION__);
+
+		// note:
+		//   both of these only have effect if MoveNow() was called, but
+		//   the former starts from the ROOT piece (less efficient here)
+		// model->UpdatePieceMatrices();
+		piece->UpdateMatricesRec(true);
+	}
+
 	return 0;
 }
 
@@ -1335,6 +1366,19 @@ int CLuaUnitScript::Move(lua_State* L)
 	} else {
 		activeScript->Move(piece, axis, speed, dest);
 	}
+
+	if (lua_isboolean(L, 5) && lua_toboolean(L, 5)) {
+		// CUnit* unit = activeScript->GetUnit();
+		// LocalModel* model = unit->localModel;
+		LocalModelPiece* piece = ParseLocalModelPiece(L, activeScript, __FUNCTION__);
+
+		// note:
+		//   both of these only have effect if MoveNow() was called, but
+		//   the former starts from the ROOT piece (less efficient here)
+		// model->UpdatePieceMatrices();
+		piece->UpdateMatricesRec(true);
+	}
+
 	return 0;
 }
 
@@ -1414,27 +1458,6 @@ int CLuaUnitScript::SetDeathScriptFinished(lua_State* L)
 }
 
 /******************************************************************************/
-
-static inline LocalModelPiece* ParseLocalModelPiece(lua_State* L, CUnitScript* script, const char* caller)
-{
-	const int piece = luaL_checkint(L, 1) - 1;
-
-	if (!script->PieceExists(piece)) {
-		luaL_error(L, "%s(): Invalid piecenumber", caller);
-	}
-
-	return (script->GetScriptLocalModelPiece(piece));
-}
-
-
-static inline int ToLua(lua_State* L, const float3& v)
-{
-	lua_pushnumber(L, v.x);
-	lua_pushnumber(L, v.y);
-	lua_pushnumber(L, v.z);
-	return 3;
-}
-
 
 int CLuaUnitScript::GetPieceTranslation(lua_State* L)
 {

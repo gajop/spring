@@ -15,7 +15,6 @@
 #include <SDL_keyboard.h>
 #include <SDL.h>
 
-
 #include "Game.h"
 #include "Benchmark.h"
 #include "Camera.h"
@@ -1049,7 +1048,7 @@ bool CGame::UpdateUnsynced()
 			}
 
 			// TODO call only when camera changed
-			sound->UpdateListener(camera->pos, camera->forward, camera->up, deltaSec);
+			sound->UpdateListener(camera->GetPos(), camera->forward, camera->up, deltaSec);
 
 			profiler.Update();
 		}
@@ -1385,7 +1384,7 @@ void CGame::DrawInputText()
 	const float cw = fontSize * font->GetCharacterWidth(c) * globalRendering->pixelX;
 	const float csx = inputTextPosX + caretWidth;
 	glDisable(GL_TEXTURE_2D);
-	const float f = 0.5f * (1.0f + fastmath::sin((float)SDL_GetTicks() * 0.015f));
+	const float f = 0.5f * (1.0f + fastmath::sin(spring_gettime().toMilliSecsf() * 0.015f));
 	glColor4f(f, f, f, 0.75f);
 	glRectf(csx, inputTextPosY, csx + cw, inputTextPosY + fontSize * font->GetLineHeight() * globalRendering->pixelY);
 	glEnable(GL_TEXTURE_2D);

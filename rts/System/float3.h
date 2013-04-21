@@ -9,8 +9,10 @@
 #include "lib/streflop/streflop_cond.h"
 #include "System/creg/creg_cond.h"
 #include "System/FastMath.h"
+#ifdef _MSC_VER
+#include "System/Platform/Win/win32.h"
+#endif
 #ifndef BUILDING_AI
-#include "lib/gml/gml_base.h"
 #include "System/Platform/Threading.h"
 #endif
 
@@ -31,7 +33,7 @@ public:
 	void operator delete(void* p, size_t size) { mempool.Free(p, size); }
 */
 
-#ifdef __GNUC__ // optimization for gnu compilers, so it can be inlined
+#if defined(__GNUC__) && !defined (__clang__)  // optimization for gnu compilers, so it can be inlined
 	static const float CMP_EPS = 1e-4f;
 	static const float NORMALIZE_EPS = 1e-12f;
 #else
@@ -457,7 +459,7 @@ public:
 	float3& Normalize() {
 #if defined(__SUPPORT_SNAN__)
 #ifndef BUILDING_AI
-		if (GML::Enabled() && !Threading::IsSimThread())
+		if (!Threading::IsSimThread())
 			return SafeNormalize();
 #endif
 		assert(SqLength() > NORMALIZE_EPS);
@@ -508,7 +510,7 @@ public:
 	float3& ANormalize() {
 #if defined(__SUPPORT_SNAN__)
 #ifndef BUILDING_AI
-		if (GML::Enabled() && !Threading::IsSimThread())
+		if (!Threading::IsSimThread())
 			return SafeANormalize();
 #endif
 		assert(SqLength() > NORMALIZE_EPS);
@@ -673,7 +675,9 @@ public:
  * Defines constant upwards vector
  * (0, 1, 0)
  */
-const float3 UpVector(0.0f, 1.0f, 0.0f);
+const float3  UpVector(0.0f, 1.0f, 0.0f);
+const float3 FwdVector(0.0f, 0.0f, 1.0f);
+const float3 RgtVector(1.0f, 0.0f, 0.0f);
 
 /**
  * @brief zero vector
@@ -682,12 +686,12 @@ const float3 UpVector(0.0f, 1.0f, 0.0f);
  * (0, 0, 0)
  */
 const float3 ZeroVector(0.0f, 0.0f, 0.0f);
-
+const float3 OnesVector(1.0f, 1.0f, 1.0f);
 
 namespace std {
 	float3 min(float3 v1, float3 v2);
 	float3 max(float3 v1, float3 v2);
-	
+
 	float3 fabs(float3 v);
 };
 

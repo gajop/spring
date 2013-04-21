@@ -10,6 +10,10 @@
 #include "System/Log/ILog.h"
 #include "System/Platform/CrashHandler.h"
 
+#ifndef DEDICATED
+	#include "System/Sync/FPUCheck.h"
+#endif
+
 #include <boost/version.hpp>
 #include <boost/thread.hpp>
 #include <boost/cstdint.hpp>
@@ -23,7 +27,6 @@
 	#include <sched.h>
 #endif
 
-extern void streflop_init_omp();
 
 namespace Threading {
 	static Error* threadError = NULL;
@@ -38,7 +41,7 @@ namespace Threading {
 	static boost::thread::id noThreadID;
 	static boost::thread::id simThreadID;
 	static boost::thread::id batchThreadID;
-#endif	
+#endif
 #if defined(__APPLE__)
 #elif defined(WIN32)
 	static DWORD cpusSystem = 0;
@@ -51,7 +54,7 @@ namespace Threading {
 		static bool inited = false;
 		if (inited)
 			return;
-		
+
 	#if defined(__APPLE__)
 		// no-op
 
@@ -211,11 +214,6 @@ namespace Threading {
 	}
 	#endif
 
-	static void streflop_omp() {
-	#ifdef STREFLOP_SSE
-		::streflop_init_omp();
-	#endif
-	}
 
 	void InitOMP(bool useOMP) {
 		if (OMPInited) {
@@ -223,7 +221,8 @@ namespace Threading {
 			return;
 		}
 		OMPInited = true;
-	#ifdef _OPENMP
+
+	#if defined(_OPENMP) && !defined(DEDICATED)
 		if (useOMP) {
 			boost::uint32_t systemCores   = Threading::GetAvailableCoresMask();
 			boost::uint32_t mainAffinity  = systemCores & configHandler->GetUnsigned("SetCoreAffinity");
@@ -232,9 +231,9 @@ namespace Threading {
 			// For latency reasons our openmp threads yield rarely and so eat a lot cputime with idleing.
 			// So it's better we always leave 1 core free for our other threads, drivers & OS
 			if (omp_get_max_threads() > 2)
-				omp_set_num_threads(omp_get_max_threads() - 1); 
+				omp_set_num_threads(omp_get_max_threads() - 1);
 
-			streflop_omp();
+			streflop_init_omp();
 
 			// omp threads
 			boost::uint32_t ompCores = 0;
@@ -256,7 +255,7 @@ namespace Threading {
 			if (mainAffinity == 0) mainAffinity = systemCores;
 			Threading::SetAffinityHelper("Main", mainAffinity & nonOmpCores);
 		} else
-#endif
+	#endif
 		{
 			Threading::SetAffinityHelper("Main", configHandler->GetUnsigned("SetCoreAffinity"));
 		}

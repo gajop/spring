@@ -13,7 +13,7 @@ fi
 
 EXITCODE=0
 
-for i in $(find ${TESTDIR}/.spring -maxdepth 1 -type f -name "core.*") ; do
+for i in $(find ${TESTDIR}/.config/spring -maxdepth 1 -type f -name "core.*") ; do
 
 	COREFILE=$i
 
@@ -36,6 +36,6 @@ done
 if [ $EXITCODE -ne 0 ]; then
 	echo Tests failed, uploading spring writeable dir
 	mkdir -p ${TMP_PATH}/validation/
-	mv ${TMP_BASE}/tests/.spring/ ${TMP_PATH}/validation/
+	mv ${TMP_BASE}/tests/.config/spring/ ${TMP_PATH}/validation/
 fi
 exit $EXITCODE

@@ -11,7 +11,6 @@
 #include "Rendering/Env/ISky.h"
 #include "Rendering/Env/SkyLight.h"
 #include "Rendering/GL/myGL.h"
-#include "Rendering/GL/LightHandler.h"
 #include "Rendering/Shaders/ShaderHandler.h"
 #include "Rendering/Shaders/Shader.h"
 #include "Sim/Misc/GlobalSynced.h"
@@ -46,8 +45,12 @@ bool SMFRenderStateARB::Init(const CSMFGroundDrawer* smfGroundDrawer) {
 	smfShaderRefrARB = NULL;
 	smfShaderCurrARB = NULL;
 
+	if (!globalRendering->haveARB) {
+		// not possible to do (ARB) shader-based map rendering
+		return false;
+	}
 	if (!configHandler->GetBool("AdvMapShading")) {
-		// not allowed to do shader-based map rendering
+		// not allowed to do (ARB) shader-based map rendering
 		return false;
 	}
 
@@ -86,8 +89,12 @@ void SMFRenderStateARB::Kill() {
 bool SMFRenderStateGLSL::Init(const CSMFGroundDrawer* smfGroundDrawer) {
 	smfShaderGLSL = NULL;
 
+	if (!globalRendering->haveGLSL) {
+		// not possible to do (GLSL) shader-based map rendering
+		return false;
+	}
 	if (!configHandler->GetBool("AdvMapShading")) {
-		// not allowed to do shader-based map rendering
+		// not allowed to do (GLSL) shader-based map rendering
 		return false;
 	}
 
@@ -371,7 +378,7 @@ void SMFRenderStateARB::Enable(const CSMFGroundDrawer* smfGroundDrawer, const Dr
 	smfShaderCurrARB->SetUniformTarget(GL_VERTEX_PROGRAM_ARB);
 	smfShaderCurrARB->SetUniform4f(10, 1.0f / (gs->pwr2mapx * SQUARE_SIZE), 1.0f / (gs->pwr2mapy * SQUARE_SIZE), 0, 1);
 	smfShaderCurrARB->SetUniform4f(12, 1.0f / smfMap->bigTexSize, 1.0f / smfMap->bigTexSize, 0, 1);
-	smfShaderCurrARB->SetUniform4f(13, -math::floor(camera->pos.x * 0.02f), -math::floor(camera->pos.z * 0.02f), 0, 0);
+	smfShaderCurrARB->SetUniform4f(13, -math::floor(camera->GetPos().x * 0.02f), -math::floor(camera->GetPos().z * 0.02f), 0, 0);
 	smfShaderCurrARB->SetUniform4f(14, 0.02f, 0.02f, 0, 1);
 	smfShaderCurrARB->SetUniformTarget(GL_FRAGMENT_PROGRAM_ARB);
 	smfShaderCurrARB->SetUniform4f(10, ambientColor.x, ambientColor.y, ambientColor.z, 1);
@@ -420,9 +427,6 @@ void SMFRenderStateGLSL::Enable(const CSMFGroundDrawer* smfGroundDrawer, const D
 	const CSMFReadMap* smfMap = smfGroundDrawer->GetReadMap();
 	const GL::LightHandler* lightHandler = smfGroundDrawer->GetLightHandler();
 
-	// XXX
-	GL::LightHandler* _lightHandler = const_cast<GL::LightHandler*>(lightHandler);
-
 	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 
 	smfShaderGLSL->SetFlag("HAVE_SHADOWS", int(shadowHandler->shadowsLoaded));
@@ -430,14 +434,14 @@ void SMFRenderStateGLSL::Enable(const CSMFGroundDrawer* smfGroundDrawer, const D
 
 	smfShaderGLSL->Enable();
 	smfShaderGLSL->SetUniform2f(9, readmap->currMinHeight, readmap->currMaxHeight);
-	smfShaderGLSL->SetUniform3fv(11, &camera->pos[0]);
+	smfShaderGLSL->SetUniform3fv(11, &camera->GetPos()[0]);
 	smfShaderGLSL->SetUniformMatrix4fv(13, false, shadowHandler->shadowMatrix);
 	smfShaderGLSL->SetUniform4fv(14, &(shadowHandler->GetShadowParams().x));
 	smfShaderGLSL->SetUniform1f(31, float(smfGroundDrawer->drawMode == CBaseGroundDrawer::drawMetal) + 1.0f);
 
 	// already on the MV stack at this point
 	glLoadIdentity();
-	_lightHandler->Update(smfShaderGLSL);
+	const_cast<GL::LightHandler*>(lightHandler)->Update(smfShaderGLSL);
 	glMultMatrixf(camera->GetViewMatrix());
 
 	glActiveTexture(GL_TEXTURE1);

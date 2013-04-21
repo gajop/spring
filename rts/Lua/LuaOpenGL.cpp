@@ -14,7 +14,6 @@
 #include <algorithm>
 #include <SDL_keysym.h>
 #include <SDL_mouse.h>
-#include <SDL_timer.h>
 
 
 #include "LuaOpenGL.h"
@@ -1616,7 +1615,7 @@ static inline CUnit* ParseDrawUnit(lua_State* L, const char* caller, int index)
 	if (!camera->InView(unit->midPos, unit->radius)) {
 		return NULL;
 	}
-	const float sqDist = (unit->pos - camera->pos).SqLength();
+	const float sqDist = (unit->pos - camera->GetPos()).SqLength();
 	//const float farLength = unit->sqRadius * unitDrawDist * unitDrawDist;
 	//if (sqDist >= farLength) {
 	//	return NULL;

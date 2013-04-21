@@ -453,8 +453,8 @@ void CProjectileDrawer::DrawProjectile(CProjectile* pro, bool drawReflection, bo
 			return;
 		}
 
-		const float dif = pro->pos.y - camera->pos.y;
-		const float3 zeroPos = camera->pos * (pro->pos.y / dif) + pro->pos * (-camera->pos.y / dif);
+		const float dif = pro->pos.y - camera->GetPos().y;
+		const float3 zeroPos = camera->GetPos() * (pro->pos.y / dif) + pro->pos * (-camera->GetPos().y / dif);
 
 		if (ground->GetApproximateHeight(zeroPos.x, zeroPos.z, false) > 3 + 0.5f * pro->drawRadius) {
 			return;
@@ -744,8 +744,6 @@ void CProjectileDrawer::DrawShadowPass()
 
 
 bool CProjectileDrawer::DrawProjectileModel(const CProjectile* p, bool shadowPass) {
-	if (luaRules && luaRules->DrawProjectile(p))
-		return true;
 	if (!(p->weapon || p->piece) || (p->model == NULL))
 		return false;
 
@@ -759,7 +757,10 @@ bool CProjectileDrawer::DrawProjectileModel(const CProjectile* p, bool shadowPas
 
 		glPushMatrix();
 			glMultMatrixf(wp->GetTransformMatrix(wp->GetProjectileType() == WEAPON_MISSILE_PROJECTILE));
-			wp->model->DrawStatic();
+
+			if (!(/*p->luaDraw &&*/ luaRules != NULL && luaRules->DrawProjectile(p))) {
+				wp->model->DrawStatic();
+			}
 		glPopMatrix();
 	} else {
 		// piece-projectile
@@ -777,7 +778,10 @@ bool CProjectileDrawer::DrawProjectileModel(const CProjectile* p, bool shadowPas
 		glPushMatrix();
 			glTranslatef3(pp->pos);
 			glRotatef(pp->spinAngle, pp->spinVec.x, pp->spinVec.y, pp->spinVec.z);
-			glCallList(pp->dispList);
+
+			if (!(/*p->luaDraw &&*/ luaRules != NULL && luaRules->DrawProjectile(p))) {
+				glCallList(pp->dispList);
+			}
 		glPopMatrix();
 
 		if (pp->alphaThreshold != 0.1f) {

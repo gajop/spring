@@ -51,11 +51,16 @@ CSMFGroundDrawer::CSMFGroundDrawer(CSMFReadMap* rm)
 	// set in ::Draw, but UpdateSunDir can be called first if DynamicSun is enabled
 	smfRenderState = smfRenderStateFFP;
 
-	// LH must be initialized before LoadMapShaders is called
+	// LH must be initialized before render-state is initialized
 	lightHandler.Init(2U, configHandler->GetInt("MaxDynamicMapLights"));
 
+	// NOTE:
+	//     advShading can NOT change at runtime if initially false
+	//     (see AdvMapShadingActionExecutor), so we will always use
+	//     smfRenderStateFFP (in ::Draw) in that special case and it
+	//     does not matter if smfRenderStateSSP is initialized
 	groundDetail = configHandler->GetInt("GroundDetail");
-	advShading = LoadMapShaders();
+	advShading = smfRenderStateSSP->Init(this);
 
 	waterPlaneCamInDispList  = 0;
 	waterPlaneCamOutDispList = 0;
@@ -126,16 +131,6 @@ IMeshDrawer* CSMFGroundDrawer::SwitchMeshDrawer(int mode)
 }
 
 
-bool CSMFGroundDrawer::LoadMapShaders() {
-	// NOTE:
-	//     advShading can NOT change at runtime if initially false
-	//     (see AdvMapShadingActionExecutor), so we will always use
-	//     smfRenderStateFFP (in ::Draw) in that special case and it
-	//     does not matter if smfRenderStateSSP is initialized
-	return (smfRenderStateSSP->Init(this));
-}
-
-
 
 void CSMFGroundDrawer::CreateWaterPlanes(bool camOufOfMap) {
 	glDisable(GL_TEXTURE_2D);
@@ -198,7 +193,7 @@ void CSMFGroundDrawer::CreateWaterPlanes(bool camOufOfMap) {
 
 inline void CSMFGroundDrawer::DrawWaterPlane(bool drawWaterReflection) {
 	if (!drawWaterReflection) {
-		const bool skipUnderground = (camera->pos.IsInBounds() && !mapInfo->map.voidWater);
+		const bool skipUnderground = (camera->GetPos().IsInBounds() && !mapInfo->map.voidWater);
 		const unsigned int dispList = skipUnderground ? waterPlaneCamInDispList: waterPlaneCamOutDispList;
 
 		glCallList(dispList);
@@ -245,12 +240,12 @@ void CSMFGroundDrawer::Draw(const DrawPass::e& drawPass)
 	smfRenderState->Disable(this, drawPass);
 	glDisable(GL_CULL_FACE);
 
-	DrawBorder(drawPass);
-
 	if (drawPass == DrawPass::Normal) {
 		if (mapInfo->water.hasWaterPlane) {
 			DrawWaterPlane(false);
 		}
+
+		DrawBorder(drawPass);
 
 		groundDecals->Draw();
 		projectileDrawer->DrawGroundFlashes();

@@ -2435,7 +2435,7 @@ int LuaSyncedRead::GetProjectilesInRectangle(lua_State* L)
 	const float3 mins(xmin, 0.0f, zmin);
 	const float3 maxs(xmax, 0.0f, zmax);
 
-	bool renderAccess = GML::SimEnabled() && !Threading::IsSimThread();
+	bool renderAccess = !Threading::IsSimThread();
 
 	const vector<CProjectile*>& rectProjectiles = quadField->GetProjectilesExact(mins, maxs);
 	const unsigned int rectProjectileCount = rectProjectiles.size();
@@ -4954,30 +4954,32 @@ int LuaSyncedRead::GetPositionLosState(lua_State* L)
 
 	bool inLos    = false;
 	bool inRadar  = false;
+	bool inJammer = false;
 
 	if (allyTeamID >= 0) {
-		inLos   = loshandler->InLos(pos, allyTeamID);
-		inRadar = radarhandler->InRadar(pos, allyTeamID);
-	}
-	else {
+		inLos    = loshandler->InLos(pos, allyTeamID);
+		inRadar  = radarhandler->InRadar(pos, allyTeamID);
+		inJammer = radarhandler->InJammer(pos, allyTeamID);
+	} else {
+		// this does not seem useful
 		for (int at = 0; at < teamHandler->ActiveAllyTeams(); at++) {
 			if (loshandler->InLos(pos, at)) {
 				inLos = true;
-				break;
 			}
-		}
-		for (int at = 0; at < teamHandler->ActiveAllyTeams(); at++) {
 			if (radarhandler->InRadar(pos, at)) {
 				inRadar = true;
-				break;
+			}
+			if (radarhandler->InJammer(pos, at)) {
+				inJammer = true;
 			}
 		}
 	}
+
 	lua_pushboolean(L, inLos || inRadar);
 	lua_pushboolean(L, inLos);
 	lua_pushboolean(L, inRadar);
-
-	return 3;
+	lua_pushboolean(L, inJammer);
+	return 4;
 }
 
 

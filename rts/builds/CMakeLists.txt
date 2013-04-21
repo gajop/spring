@@ -47,7 +47,21 @@ macro    (CreateEngineBuildAndInstallTarget targetName)
 	If    (NOT "${AI_TYPES}" STREQUAL "NONE")
 		Set(${targetName}-InstallDirs ${${targetName}-InstallDirs} "AI")
 	EndIf (NOT "${AI_TYPES}" STREQUAL "NONE")
+
 	CreateInstallTarget(spring-${targetName} myBuildTarget ${targetName}-InstallDirs)
+
+	# allow easy switching of the default engine
+	if    (${targetName} STREQUAL "legacy")
+		# Create shortcuts
+		# * make spring
+		# * make install-spring
+		message(STATUS "Using ${targetName} as default engine")
+		add_dependencies(spring spring-${targetName}) # This also works for custom targets
+		add_dependencies(install-spring install-spring-${targetName}) # This also works for custom targets
+		set_target_properties(engine-${targetName} PROPERTIES OUTPUT_NAME "spring")
+	else()
+		set_target_properties(engine-${targetName} PROPERTIES OUTPUT_NAME "spring-${targetName}")
+	endif ()
 endmacro (CreateEngineBuildAndInstallTarget targetName)
 
 
@@ -59,14 +73,19 @@ Macro    (AddEngineBuild build)
 	EndIf  ()
 EndMacro (AddEngineBuild)
 
+# add default dummy target which is used later on
+add_custom_target(spring WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
+add_custom_target(install-spring WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
+
 if    (NOT HEADLESS_SYSTEM)
-	add_custom_target(spring WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
-	add_custom_target(install-spring WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
-	AddEngineBuild(default) ## ASIM GML OMP
-	if    (LEGACY_SYSTEM)
-		AddEngineBuild(legacy) ## OMP
-	endif (LEGACY_SYSTEM)
+	### Add icon and manifest to exe using windres
+	IF    (WIN32 AND MINGW)
+		SET(ENGINE_ICON "${ENGINE_SRC_ROOT_DIR}/icon.rc")
+	ENDIF (WIN32 AND MINGW)
+	AddEngineBuild(multithreaded) ## ASIM GML OMP
+	AddEngineBuild(legacy) ## OMP
 endif (NOT HEADLESS_SYSTEM)
 
 AddEngineBuild(dedicated)
 AddEngineBuild(headless)
+

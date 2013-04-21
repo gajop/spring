@@ -40,12 +40,14 @@ ulimit -v 1500000
 ulimit -t 180
 
 # delete path cache
-rm -rf ~/.spring/cache/
+rm -rf ~/.config/spring/cache/
 
 # start up the client in background
 $RUNCLIENT $1 &
 PID_CLIENT=$!
 
+# start host
+echo "Starting Host"
 set +e #temp disable abort on error
 $@ &
 PID_HOST=$!
@@ -66,9 +68,9 @@ EXITCHILD=$?
 #reenable abbort on error
 set -e
 
-if [ -d ~/.spring/AI ]; then
-	echo Server and client exited, dumping log files in ~/.spring/AI
-	find ~/.spring/AI -regex '.*\.\(txt\|log\)' -type f -exec echo {} \; -exec cat {} \; -delete
+if [ -d ~/.config/spring/AI ]; then
+	echo Server and client exited, dumping log files in ~/.config/spring/AI
+	find ~/.config/spring/AI -regex '.*\.\(txt\|log\)' -type f -exec echo {} \; -exec cat {} \; -delete
 fi
 
 # exit with exit code of server/client if failed

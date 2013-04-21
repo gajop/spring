@@ -87,7 +87,7 @@ const unsigned SYNCCHECK_TIMEOUT = 300;
 const unsigned SYNCCHECK_MSG_TIMEOUT = 400;
 
 /// The time intervall in msec for sending player statistics to each client
-const spring_duration playerInfoTime = spring_secs(2);
+const spring_time playerInfoTime = spring_secs(2);
 
 /// every n'th frame will be a keyframe (and contain the server's framenumber)
 const unsigned serverKeyframeIntervall = 16;
@@ -1938,7 +1938,7 @@ void CGameServer::CheckForGameStart(bool forced)
 	}
 
 	// msecs to wait until the game starts after all players are ready
-	const spring_duration gameStartDelay = spring_secs(setup->gameStartDelay);
+	const spring_time gameStartDelay = spring_secs(setup->gameStartDelay);
 
 	if (allReady || forced) {
 		if (!spring_istime(readyTime)) {
@@ -2080,8 +2080,8 @@ void CGameServer::PushAction(const Action& action)
 			}
 			else {
 				int playerID = atoi(tokens[0].c_str());
-				bool muteChat;
-				bool muteDraw;
+				bool muteChat = true;
+				bool muteDraw = true;
 				if ( !tokens.empty() ) SetBoolArg(muteChat, tokens[1]);
 				if ( tokens.size() >= 2 ) SetBoolArg(muteDraw, tokens[2]);
 				MutePlayer(playerID,muteChat,muteDraw);
@@ -2285,7 +2285,7 @@ void CGameServer::CreateNewFrame(bool fromServerThread, bool fixedFrameTime)
 
 	if (!fixedFrameTime) {
 		spring_time currentTick = spring_gettime();
-		spring_duration timeElapsed = currentTick - lastTick;
+		spring_time timeElapsed = currentTick - lastTick;
 
 		if (timeElapsed > spring_msecs(200))
 			timeElapsed = spring_msecs(200);

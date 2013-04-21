@@ -58,7 +58,10 @@ IF    (UNIX AND NOT MINGW)
 		#FIND_LIBRARY(OMP_LIBRARY gomp) FIXME it's hidden in some subfolders
 		UNPREFER_STATIC_LIBS()
 
-		LIST(APPEND engineCommonLibraries ${C_LIBRARY} ${MATH_LIBRARY})
+		# gives linker error when linked static, so link dynamic
+		FIND_LIBRARY(REALTIME_LIBRARY rt)
+
+		LIST(APPEND engineCommonLibraries ${C_LIBRARY} ${MATH_LIBRARY} ${REALTIME_LIBRARY})
 		#LIST(APPEND engineCommonLibraries ${PTHREAD_LIBRARY} ${OMP_LIBRARY})
 	ENDIF (PREFER_STATIC_LIBS)
 
@@ -68,15 +71,10 @@ ENDIF (UNIX AND NOT MINGW)
 
 FIND_PACKAGE_STATIC(ZLIB REQUIRED)
 LIST(APPEND engineCommonLibraries ${DEVIL_IL_LIBRARY} ${JPEG_LIBRARY} ${PNG_LIBRARY} ${TIFF_LIBRARY} ${GIF_LIBRARY})
-LIST(APPEND engineCommonLibraries ${Boost_REGEX_LIBRARY} ${Boost_PROGRAM_OPTIONS_LIBRARY} ${Boost_SIGNALS_LIBRARY} ${Boost_SYSTEM_LIBRARY})
+LIST(APPEND engineCommonLibraries ${Boost_REGEX_LIBRARY} ${Boost_PROGRAM_OPTIONS_LIBRARY} ${Boost_SIGNALS_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${Boost_CHRONO_LIBRARY})
 LIST(APPEND engineCommonLibraries 7zip ${SPRING_MINIZIP_LIBRARY} ${ZLIB_LIBRARY})
 LIST(APPEND engineCommonLibraries lua luasocket archives streflop assimp)
 include_directories(${ZLIB_INCLUDE_DIR})
-
-if (MINGW AND Boost_CHRONO_FOUND)
-	# in newer boost versions the thread library depends on it
-	LIST(APPEND engineCommonLibraries ${Boost_CHRONO_LIBRARY})
-endif (MINGW AND Boost_CHRONO_FOUND)
 
 IF (WIN32)
 	LIST(APPEND engineCommonLibraries ${WIN32_LIBRARIES})
