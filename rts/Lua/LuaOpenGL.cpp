@@ -368,6 +368,8 @@ bool LuaOpenGL::PushEntries(lua_State* L)
 
 	REGISTER_LUA_CFUNC(ReadPixels);
 	REGISTER_LUA_CFUNC(SaveImage);
+	REGISTER_LUA_CFUNC(TexImage);
+	REGISTER_LUA_CFUNC(TexSubImage);
 
 	if (GLEW_ARB_occlusion_query) {
 		REGISTER_LUA_CFUNC(CreateQuery);
@@ -4210,6 +4212,35 @@ int LuaOpenGL::SaveImage(lua_State* L)
 	return 1;
 }
 
+int LuaOpenGL::TexImage(lua_State* L)
+{
+	return 0;
+}
+
+int LuaOpenGL::TexSubImage(lua_State* L)
+{
+	const int args = lua_gettop(L); // number of arguments
+
+	const std::string& texture = luaL_checkstring(L, 1);
+	if (texture[0] != LuaTextures::prefix) // '!'
+		luaL_error(L, "gl.TexSubImage() can only use Lua textures");
+	const LuaTextures& textures = CLuaHandle::GetActiveTextures(L);
+	const LuaTextures::Texture* tex = textures.GetInfo(texture);
+	if (tex == nullptr)
+		return 0;
+
+	const GLint xoff =   (GLint)luaL_checknumber(L, 2);
+	const GLint yoff =   (GLint)luaL_checknumber(L, 3);
+	const GLsizei  w = (GLsizei)luaL_checknumber(L, 4);
+	const GLsizei  h = (GLsizei)luaL_checknumber(L, 5);
+	GLvoid* data;
+	const GLenum format = (GLenum)luaL_optint(L, 7, GL_RGBA);
+	const GLenum level  = (GLenum)luaL_optnumber(L, 8, 0);
+
+	glTexSubImage2D(tex->target, level, xoff, yoff, w, h, format, GL_FLOAT, data);
+
+	return 0;
+}
 
 /******************************************************************************/
 
