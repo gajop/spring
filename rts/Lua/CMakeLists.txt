@@ -48,6 +48,8 @@ SET(sources_engine_Lua
 		"${CMAKE_CURRENT_SOURCE_DIR}/LuaUnsyncedCtrl.cpp"
 		"${CMAKE_CURRENT_SOURCE_DIR}/LuaUnsyncedRead.cpp"
 		"${CMAKE_CURRENT_SOURCE_DIR}/LuaUtils.cpp"
+		"${CMAKE_CURRENT_SOURCE_DIR}/LuaVAOs.cpp"
+		"${CMAKE_CURRENT_SOURCE_DIR}/LuaVBOs.cpp"
 		"${CMAKE_CURRENT_SOURCE_DIR}/LuaVFS.cpp"
 		"${CMAKE_CURRENT_SOURCE_DIR}/LuaWeaponDefs.cpp"
 		"${CMAKE_CURRENT_SOURCE_DIR}/LuaZip.cpp"

@@ -10,6 +10,8 @@
 #include "LuaTextures.h"
 #include "LuaFBOs.h"
 #include "LuaRBOs.h"
+#include "LuaVAOs.h"
+#include "LuaVBOs.h"
 
 #include "Rendering/GL/MatrixStateTracker.h"
 #endif
@@ -107,6 +109,8 @@ public:
 	LuaTextures textures;
 	LuaFBOs fbos;
 	LuaRBOs rbos;
+	LuaVAOs vaos;
+	LuaVBOs vbos;
 
 	GLMatrixStateTracker glMatrixTracker;
 #endif

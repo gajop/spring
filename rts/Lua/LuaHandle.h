@@ -97,6 +97,8 @@ class CLuaHandle : public CEventClient
 		LuaTextures& GetTextures(const lua_State* L = NULL) { return GetLuaContextData(L)->textures; }
 		LuaFBOs& GetFBOs(const lua_State* L = NULL) { return GetLuaContextData(L)->fbos; }
 		LuaRBOs& GetRBOs(const lua_State* L = NULL) { return GetLuaContextData(L)->rbos; }
+		LuaVAOs& GetVAOs(const lua_State* L = NULL) { return GetLuaContextData(L)->vaos; }
+		LuaVBOs& GetVBOs(const lua_State* L = NULL) { return GetLuaContextData(L)->vbos; }
 #endif
 
 	public: // call-ins
@@ -332,6 +334,8 @@ class CLuaHandle : public CEventClient
 		static inline LuaTextures& GetActiveTextures(lua_State* L) { return GetLuaContextData(L)->textures; }
 		static inline LuaFBOs& GetActiveFBOs(lua_State* L) { return GetLuaContextData(L)->fbos; }
 		static inline LuaRBOs& GetActiveRBOs(lua_State* L) { return GetLuaContextData(L)->rbos; }
+		static inline LuaVAOs& GetActiveVAOs(lua_State* L) { return GetLuaContextData(L)->vaos; }
+		static inline LuaVBOs& GetActiveVBOs(lua_State* L) { return GetLuaContextData(L)->vbos; }
 #endif
 
 		static void SetDevMode(bool value) { devMode = value; }

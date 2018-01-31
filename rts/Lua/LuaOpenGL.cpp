@@ -27,7 +27,8 @@
 #include "LuaShaders.h"
 #include "LuaTextures.h"
 #include "LuaUtils.h"
-//FIXME#include "LuaVBOs.h"
+#include "LuaVAOs.h"
+#include "LuaVBOs.h"
 #include "Game/Camera.h"
 #include "Game/UI/CommandColors.h"
 #include "Game/UI/MiniMap.h"
@@ -353,7 +354,8 @@ bool LuaOpenGL::PushEntries(lua_State* L)
 	LuaShaders::PushEntries(L);
  	LuaFBOs::PushEntries(L);
  	LuaRBOs::PushEntries(L);
-	// TODO LuaVBOs::PushEntries(L);
+	LuaVBOs::PushEntries(L);
+	LuaVAOs::PushEntries(L);
 
 	LuaFonts::PushEntries(L);
 	return true;
