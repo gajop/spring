@@ -260,6 +260,8 @@ bool LuaOpenGL::PushEntries(lua_State* L)
 	REGISTER_LUA_CFUNC(TexGen);
 	REGISTER_LUA_CFUNC(MultiTexGen);
 
+	REGISTER_LUA_CFUNC(DrawArrays);
+
 	REGISTER_LUA_CFUNC(Shape);
 	REGISTER_LUA_CFUNC(BeginEnd);
 	REGISTER_LUA_CFUNC(Vertex);
@@ -1693,6 +1695,18 @@ static bool ParseVertexData(lua_State* L, VertexData& vd)
 	return vd.hasVert;
 }
 
+int LuaOpenGL::DrawArrays(lua_State* L)
+{
+	CheckDrawingEnabled(L, __func__);
+
+	const GLenum mode = (GLenum)luaL_checkint(L, 1);
+	const GLenum first = (GLint)luaL_checkint(L, 2);
+	const GLenum count = (GLsizei)luaL_checkint(L, 3);
+
+	glDrawArrays(mode, first, count);
+
+	return 0;
+}
 
 int LuaOpenGL::Shape(lua_State* L)
 {

@@ -9,7 +9,6 @@
 #include "LuaHashString.h"
 #include "LuaUtils.h"
 
-#include "Rendering/GL/myGL.h"
 #include "Rendering/GL/VAO.h"
 
 
@@ -18,9 +17,9 @@
 
 LuaVAOs::~LuaVAOs()
 {
-	for (const VAO* vao: vaos) {
-		delete vao;
-	}
+	// for (const VAO* vao: vaos) {
+	// 	delete vao;
+	// }
 }
 
 
@@ -40,8 +39,12 @@ bool LuaVAOs::PushEntries(lua_State* L)
 bool LuaVAOs::CreateMetatable(lua_State* L)
 {
 	luaL_newmetatable(L, "VAO");
+
+	lua_pushvalue(L, -1);
+	lua_setfield(L, -2, "__index");
+
 	HSTR_PUSH_CFUNC(L, "__gc",        meta_gc);
-	HSTR_PUSH_CFUNC(L, "__index",     meta_index);
+	// HSTR_PUSH_CFUNC(L, "__index",     meta_index);
 	HSTR_PUSH_CFUNC(L, "__newindex",  meta_newindex);
 	HSTR_PUSH_CFUNC(L, "Bind",        meta_Bind);
 	HSTR_PUSH_CFUNC(L, "Unbind",      meta_Unbind);
@@ -53,9 +56,9 @@ bool LuaVAOs::CreateMetatable(lua_State* L)
 /******************************************************************************/
 /******************************************************************************/
 
-const VAO* LuaVAOs::GetLuaVAO(lua_State* L, int index)
+const LuaVAOs::LuaVAO* LuaVAOs::GetLuaVAO(lua_State* L, int index)
 {
-	return static_cast<VAO*>(LuaUtils::GetUserData(L, index, "VAO"));
+	return static_cast<LuaVAO*>(LuaUtils::GetUserData(L, index, "VAO"));
 }
 
 
@@ -72,29 +75,30 @@ const VAO* LuaVAOs::GetLuaVAO(lua_State* L, int index)
 // 	xsize  = 0;
 // 	ysize  = 0;
 // }
-//
-//
-// void LuaVAOs::VAO::Free(lua_State* L)
-// {
-// 	if (id == 0)
-// 		return;
-//
-// 	glDeleteRenderbuffersEXT(1, &id);
-// 	id = 0;
-//
-// 	{
-// 		// get rid of the userdatum
-// 		LuaVAOs& activeVAOs = CLuaHandle::GetActiveVAOs(L);
-// 		auto& vaos = activeVAOs.vaos;
-//
-// 		assert(index < vaos.size());
-// 		assert(vaos[index] == this);
-//
-// 		vaos[index] = vaos.back();
-// 		vaos[index]->index = index;
-// 		vaos.pop_back();
-// 	}
-// }
+
+
+void LuaVAOs::LuaVAO::Free(lua_State* L)
+{
+	// if (id == 0)
+	// 	return;
+	//
+	// glDeleteRenderbuffersEXT(1, &id);
+	// id = 0;
+	printf("VAO Index: %d\n", index);
+
+	{
+		// get rid of the userdatum
+		LuaVAOs& activeVAOs = CLuaHandle::GetActiveVAOs(L);
+		auto& vaos = activeVAOs.vaos;
+
+		assert(index < vaos.size());
+		assert(vaos[index] == this);
+
+		vaos[index] = vaos.back();
+		vaos[index]->index = index;
+		vaos.pop_back();
+	}
+}
 
 
 /******************************************************************************/
@@ -102,8 +106,8 @@ const VAO* LuaVAOs::GetLuaVAO(lua_State* L, int index)
 
 int LuaVAOs::meta_gc(lua_State* L)
 {
-	VAO* vao = static_cast<VAO*>(luaL_checkudata(L, 1, "VAO"));
-	delete vao;
+	LuaVAO* luaVAO = static_cast<LuaVAO*>(luaL_checkudata(L, 1, "VAO"));
+	luaVAO->Free(L);
 	return 0;
 }
 
@@ -130,14 +134,16 @@ int LuaVAOs::meta_newindex(lua_State* L)
 
 int LuaVAOs::meta_Bind(lua_State* L)
 {
-	VAO* vao = static_cast<VAO*>(luaL_checkudata(L, 1, "VAO"));
+	LuaVAO* luaVAO = static_cast<LuaVAO*>(luaL_checkudata(L, 1, "VAO"));
+	VAO* vao = luaVAO->vao;
 	vao->Bind();
 	return 0;
 }
 
 int LuaVAOs::meta_Unbind(lua_State* L)
 {
-	VAO* vao = static_cast<VAO*>(luaL_checkudata(L, 1, "VAO"));
+	LuaVAO* luaVAO = static_cast<LuaVAO*>(luaL_checkudata(L, 1, "VAO"));
+	VAO* vao = luaVAO->vao;
 	vao->Unbind();
 	return 0;
 }
@@ -148,8 +154,9 @@ int LuaVAOs::meta_Unbind(lua_State* L)
 
 int LuaVAOs::CreateVAO(lua_State* L)
 {
-	VAO* vaoPtr = static_cast<VAO*>(lua_newuserdata(L, sizeof(VAO)));
-	vaoPtr->Generate();
+	LuaVAO* luaVao = static_cast<LuaVAO*>(lua_newuserdata(L, sizeof(LuaVAO)));
+	luaVao->vao = new VAO();
+	luaVao->vao->Generate();
 
 	luaL_getmetatable(L, "VAO");
 	lua_setmetatable(L, -2);
@@ -158,8 +165,8 @@ int LuaVAOs::CreateVAO(lua_State* L)
 		LuaVAOs& activeVAOs = CLuaHandle::GetActiveVAOs(L);
 		auto& vaos = activeVAOs.vaos;
 
-		vaos.push_back(vaoPtr);
-		// vaoPtr->index = vaos.size() - 1;
+		vaos.push_back(luaVao);
+		luaVao->index = vaos.size() - 1;
 	// }
 
 	return 1;

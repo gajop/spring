@@ -17,26 +17,22 @@ class LuaVAOs {
 
 		static bool PushEntries(lua_State* L);
 
-		// struct VAO;
-		const VAO* GetLuaVAO(lua_State* L, int index);
+		struct LuaVAO;
+		static const LuaVAO* GetLuaVAO(lua_State* L, int index);
 
 	public:
-		// struct VAO {
-		// 	VAO() : index(-1u), id(0), target(0), format(0), xsize(0), ysize(0) {}
-		//
-		// 	void Init();
-		// 	void Free(lua_State* L);
-		//
-		// 	GLuint index; // into LuaVAOs::vaos
-		// 	GLuint id;
-		// 	GLenum target;
-		// 	GLenum format;
-		// 	GLsizei xsize;
-		// 	GLsizei ysize;
-		// };
+		struct LuaVAO {
+			LuaVAO() : index(-1u) {}
+
+			void Init();
+			void Free(lua_State* L);
+
+			unsigned int index; // into LuaVAOs::vaos
+			VAO* vao;
+		};
 
 	private:
-		std::vector<VAO*> vaos;
+		std::vector<LuaVAO*> vaos;
 
 	private: // helpers
 		static bool CreateMetatable(lua_State* L);

@@ -17,9 +17,9 @@
 
 LuaVBOs::~LuaVBOs()
 {
-	for (const VBO* vbo: vbos) {
-		delete vbo;
-	}
+	// for (const VBO* vbo: vbos) {
+	// 	delete vbo;
+	// }
 }
 
 
@@ -40,8 +40,15 @@ bool LuaVBOs::PushEntries(lua_State* L)
 bool LuaVBOs::CreateMetatable(lua_State* L)
 {
 	luaL_newmetatable(L, "VBO");
+
+	lua_pushvalue(L, -1);
+	lua_setfield(L, -2, "__index");
+
 	HSTR_PUSH_CFUNC(L, "__gc",        meta_gc);
-	HSTR_PUSH_CFUNC(L, "__index",     meta_index);
+	// HSTR_PUSH_CFUNC(L, "__index",     meta_index);
+	HSTR_PUSH_CFUNC(L, "Bind",        meta_Bind);
+	HSTR_PUSH_CFUNC(L, "Unbind",      meta_Unbind);
+	HSTR_PUSH_CFUNC(L, "Set",         meta_Set);
 	HSTR_PUSH_CFUNC(L, "__newindex",  meta_newindex);
 	lua_pop(L, 1);
 	return true;
@@ -51,26 +58,64 @@ bool LuaVBOs::CreateMetatable(lua_State* L)
 /******************************************************************************/
 /******************************************************************************/
 
-const VBO* LuaVBOs::GetLuaVBO(lua_State* L, int index)
+const LuaVBOs::LuaVBO* LuaVBOs::GetLuaVBO(lua_State* L, int index)
 {
-	return static_cast<VBO*>(LuaUtils::GetUserData(L, index, "VBO"));
+	return static_cast<LuaVBO*>(LuaUtils::GetUserData(L, index, "VBO"));
 }
 
 /******************************************************************************/
 /******************************************************************************/
 
+//
+// void LuaVBO::VBO::Init()
+// {
+// 	index  = -1u;
+// 	id     = 0;
+// 	target = GL_RENDERBUFFER_EXT;
+// 	format = GL_RGBA;
+// 	xsize  = 0;
+// 	ysize  = 0;
+// }
+
+
+void LuaVBOs::LuaVBO::Free(lua_State* L)
+{
+	// if (id == 0)
+	// 	return;
+	//
+	// glDeleteRenderbuffersEXT(1, &id);
+	// id = 0;
+
+	{
+		// get rid of the userdatum
+		LuaVBOs& activeVBOs = CLuaHandle::GetActiveVBOs(L);
+		auto& vbos = activeVBOs.vbos;
+
+		assert(index < vbos.size());
+		assert(vbos[index] == this);
+
+		vbos[index] = vbos.back();
+		vbos[index]->index = index;
+		vbos.pop_back();
+	}
+}
+
+
+/******************************************************************************/
+/******************************************************************************/
+
+
 int LuaVBOs::meta_gc(lua_State* L)
 {
-	VBO* vbo = static_cast<VBO*>(luaL_checkudata(L, 1, "VBO"));
-	// vbo->Free(L);
-	delete vbo;
+	LuaVBO* luaVBO = static_cast<LuaVBO*>(luaL_checkudata(L, 1, "VBO"));
+	luaVBO->Free(L);
 	return 0;
 }
 
 
 int LuaVBOs::meta_index(lua_State* L)
 {
-	const VBO* vbo = static_cast<VBO*>(luaL_checkudata(L, 1, "VBO"));
+	const LuaVBO* luaVBO = static_cast<LuaVBO*>(luaL_checkudata(L, 1, "VBO"));
 	const std::string& key = luaL_checkstring(L, 2);
 
 	// if (key ==  "valid") { lua_pushboolean(L, glIsRenderbufferEXT(vbo->id)); return 1; }
@@ -89,13 +134,47 @@ int LuaVBOs::meta_newindex(lua_State* L)
 }
 
 
+int LuaVBOs::meta_Bind(lua_State* L)
+{
+	LuaVBO* luaVBO = static_cast<LuaVBO*>(luaL_checkudata(L, 1, "VBO"));
+	VBO* vbo = luaVBO->vbo;
+	vbo->Bind();
+	return 0;
+}
+
+int LuaVBOs::meta_Unbind(lua_State* L)
+{
+	LuaVBO* luaVBO = static_cast<LuaVBO*>(luaL_checkudata(L, 1, "VBO"));
+	VBO* vbo = luaVBO->vbo;
+	vbo->Unbind();
+	return 0;
+}
+
+int LuaVBOs::meta_Set(lua_State* L)
+{
+	LuaVBO* luaVBO = static_cast<LuaVBO*>(luaL_checkudata(L, 1, "VBO"));
+	VBO* vbo = luaVBO->vbo;
+
+	std::vector<float> data;
+	LuaUtils::ParseFloatVector(L, 2, data);
+	printf("Data size: %d\n", data.size());
+	vbo->Bind();
+	vbo->New(data.size(), GL_STATIC_DRAW, &data[0]);
+	vbo->Unbind();
+
+	return 0;
+}
+
+
 /******************************************************************************/
 /******************************************************************************/
 
 int LuaVBOs::CreateVBO(lua_State* L)
 {
-	VBO* vboPtr = static_cast<VBO*>(lua_newuserdata(L, sizeof(VBO)));
-	vboPtr->Generate();
+	LuaVBO* luaVbo = static_cast<LuaVBO*>(lua_newuserdata(L, sizeof(LuaVBO)));
+	luaVbo->vbo = new VBO();
+	luaVbo->vbo->Generate();
+
 
 	// vbo.xsize = (GLsizei)luaL_checknumber(L, 1);
 	// vbo.ysize = (GLsizei)luaL_checknumber(L, 2);
@@ -123,8 +202,8 @@ int LuaVBOs::CreateVBO(lua_State* L)
 		LuaVBOs& activeVBOs = CLuaHandle::GetActiveVBOs(L);
 		auto& vbos = activeVBOs.vbos;
 
-		vbos.push_back(vboPtr);
-	// 	vboPtr->index = vbos.size() - 1;
+		vbos.push_back(luaVbo);
+		luaVbo->index = vbos.size() - 1;
 	// }
 
 	return 1;
