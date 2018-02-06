@@ -43,7 +43,7 @@ class LuaVBOs {
 		static int meta_newindex(lua_State* L);
 		static int meta_Bind(lua_State* L);
 		static int meta_Unbind(lua_State* L);
-		static int meta_Set(lua_State* L);
+		static int meta_UploadData(lua_State* L);
 
 	private:
 		static int CreateVBO(lua_State* L);

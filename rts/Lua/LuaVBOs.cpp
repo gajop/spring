@@ -48,7 +48,7 @@ bool LuaVBOs::CreateMetatable(lua_State* L)
 	// HSTR_PUSH_CFUNC(L, "__index",     meta_index);
 	HSTR_PUSH_CFUNC(L, "Bind",        meta_Bind);
 	HSTR_PUSH_CFUNC(L, "Unbind",      meta_Unbind);
-	HSTR_PUSH_CFUNC(L, "Set",         meta_Set);
+	HSTR_PUSH_CFUNC(L, "UploadData",  meta_UploadData);
 	HSTR_PUSH_CFUNC(L, "__newindex",  meta_newindex);
 	lua_pop(L, 1);
 	return true;
@@ -150,16 +150,36 @@ int LuaVBOs::meta_Unbind(lua_State* L)
 	return 0;
 }
 
-int LuaVBOs::meta_Set(lua_State* L)
+int LuaVBOs::meta_UploadData(lua_State* L)
 {
 	LuaVBO* luaVBO = static_cast<LuaVBO*>(luaL_checkudata(L, 1, "VBO"));
 	VBO* vbo = luaVBO->vbo;
 
 	std::vector<float> data;
 	LuaUtils::ParseFloatVector(L, 2, data);
-	printf("Data size: %d\n", data.size());
-	vbo->Bind();
-	vbo->New(data.size(), GL_STATIC_DRAW, &data[0]);
+	// printf("Data size: %d\n", data.size());
+	vbo->Bind(GL_ARRAY_BUFFER);
+	vbo->New(data.size() * sizeof(float), GL_STATIC_DRAW, &data[0]);
+
+	const int args = lua_gettop(L); // number of arguments
+
+	printf("Total args: %d\n", args);
+	GLint totalSize = 0;
+	for (int i = 3; i <= args; i++) {
+		GLint size = (GLint)lua_tonumber(L, i);
+		totalSize += size;
+	}
+	printf("total size: %d\n", totalSize);
+	GLint currentSize = 0;
+	for (int i = 3; i <= args; i++) {
+		GLint size = (GLint)lua_tonumber(L, i);
+		unsigned int index = i - 3;
+		glVertexAttribPointer(index, size, GL_FLOAT, GL_FALSE, totalSize * sizeof(GLfloat), (void*)(currentSize * sizeof(GLfloat)));
+		glEnableVertexAttribArray(index);
+		currentSize += size;
+	}
+	printf("current Size: %d\n", currentSize);
+
 	vbo->Unbind();
 
 	return 0;
