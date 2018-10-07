@@ -539,7 +539,7 @@ void CGlobalRendering::PostInit() {
 	QueryVersionInfo(sdlVersionStr, glVidMemStr);
 	LogVersionInfo(sdlVersionStr, glVidMemStr);
 
-	if (!CheckGLEWContextVersion(globalRenderingInfo.glContextVersion))
+	if (!CheckGLEWContextVersion(globalRenderingInfo.glContextVersion) && false)
 		throw (unsupported_error("GLEW version outdated, aborting"));
 
 	CheckGLExtensions();

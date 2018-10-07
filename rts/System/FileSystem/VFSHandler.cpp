@@ -307,8 +307,34 @@ bool CVFSHandler::FileExists(const std::string& filePath, Section section)
 	return (fileData.ar->FileExists(normalizedPath));
 }
 
+std::string CVFSHandler::GetFileAbsolutePath(const std::string& filePath, Section section)
+{
+	LOG_L(L_DEBUG, "[VFSH::%s(filePath=\"%s\", section=%d)]", __func__, filePath.c_str(), section);
 
+	const std::string& normalizedPath = GetNormalizedPath(filePath);
+	const FileData& fileData = GetFileData(normalizedPath, section);
 
+	return fileData.ar->GetArchiveName() + filePath; // FIXME: probably incorrect way to append file paths to archive
+}
+
+std::string CVFSHandler::GetFileArchiveName(const std::string& filePath, Section section)
+{
+	LOG_L(L_DEBUG, "[VFSH::%s(filePath=\"%s\", section=%d)]", __func__, filePath.c_str(), section);
+
+	const std::string& normalizedPath = GetNormalizedPath(filePath);
+	const FileData& fileData = GetFileData(normalizedPath, section);
+
+	return fileData.ar->GetArchiveName();
+}
+
+std::vector<std::string> CVFSHandler::GetAllArchiveNames() const
+{
+	std::vector<std::string> ret;
+	for (const auto& archive: archives) {
+		ret.push_back(archive.first);
+	}
+	return ret;
+}
 
 std::vector<std::string> CVFSHandler::GetFilesInDir(const std::string& rawDir, Section section)
 {

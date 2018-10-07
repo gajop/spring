@@ -18,6 +18,9 @@ class LuaArchive {
 		static int GetAllArchives(lua_State* L);
 		static int HasArchive(lua_State* L);
 
+		static int GetLoadedArchives(lua_State* L);
+
+		static int GetArchivePath(lua_State* L);
 		static int GetArchiveInfo(lua_State* L);
 		static int GetArchiveDependencies(lua_State* L);
 		static int GetArchiveReplaces(lua_State* L);
